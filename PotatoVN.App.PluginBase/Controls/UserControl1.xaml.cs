@@ -25,10 +25,5 @@ namespace PotatoVN.App.PluginBase.Controls
             var resourceLocator = XamlResourceLocatorFactory.Create();
             Application.LoadComponent(this, resourceLocator, ComponentResourceLocation.Application);
         }
-
-        private void PluginButton_Click(object sender, RoutedEventArgs e)
-        {
-            StatusText.Text = "插件按钮在 " + System.DateTime.Now.ToString(CultureInfo.InvariantCulture) + " 被点击了！";
-        }
     }
 }

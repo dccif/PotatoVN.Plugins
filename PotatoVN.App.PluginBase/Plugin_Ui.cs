@@ -15,9 +15,6 @@ public partial class Plugin
         panel.Children.Add(new UserControl1().WarpWithPanel());
         panel.Children.Add(new StdSetting("设置标题", "这是一个设置",
             AddToggleSwitch(_data, nameof(_data.TestBool))).WarpWithPanel());
-        StdAccountPanel accountPanel = new StdAccountPanel("title", "userName", "Description",
-            new Button().WarpWithPanel());
-        panel.Children.Add(accountPanel);
         return panel;
     }
 
