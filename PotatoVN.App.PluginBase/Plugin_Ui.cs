@@ -9,26 +9,5 @@ namespace PotatoVN.App.PluginBase;
 
 public partial class Plugin
 {
-    public FrameworkElement CreateSettingUi()
-    {
-        StdStackPanel panel = new();
-        panel.Children.Add(new UserControl1().WarpWithPanel());
-        panel.Children.Add(new StdSetting("设置标题", "这是一个设置",
-            AddToggleSwitch(_data, nameof(_data.TestBool))).WarpWithPanel());
-        return panel;
-    }
 
-    private ToggleSwitch AddToggleSwitch(object source, string propName)
-    {
-        ToggleSwitch toggle = new();
-        Binding binding = new()
-        {
-            Source = source,
-            Path = new PropertyPath(propName),
-            Mode = BindingMode.TwoWay,
-            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-        };
-        toggle.SetBinding(ToggleSwitch.IsOnProperty, binding);
-        return toggle;
-    }
 }
