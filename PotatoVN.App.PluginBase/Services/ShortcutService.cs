@@ -90,43 +90,57 @@ public static class ShortcutService
         return new GamePaths(shortcutPath, vbsPath, localIconPath, sunshineIconPath, $"potato-vn://start/{uuid}");
     }
 
-        public static async Task CreateDesktopShortcut(object game)
+    public static async Task CreateDesktopShortcut(object game)
+    {
+        try
         {
-            try
-            {
-                var paths = await PrepareAssetsAsync(game, requireSunshineAssets: false);
-                if (paths == null) return;
+            // 1. 准备路径资源
+            var paths = await PrepareAssetsAsync(game, requireSunshineAssets: false);
+            if (paths == null) return;
 
-                await Task.Run(() =>
-                {
-                    var shellType = Type.GetTypeFromProgID("WScript.Shell");
-                    if (shellType != null)
-                    {
-                        dynamic shell = Activator.CreateInstance(shellType)!;
-                        dynamic shortcut = shell.CreateShortcut(paths.ShortcutPath);
-
-                        shortcut.TargetPath = paths.UuidUri;
-                        
-                        if (File.Exists(paths.LocalIconPath))
-                        {
-                            shortcut.IconLocation = $"{paths.LocalIconPath},0";
-                        }
-                        else
-                        {
-                             var appExePath = Process.GetCurrentProcess().MainModule?.FileName;
-                             if(!string.IsNullOrEmpty(appExePath))
-                                 shortcut.IconLocation = $"{appExePath},0";
-                        }
-                        
-                        shortcut.Save();
-                    }
-                });
-            }
-            catch (Exception ex)
+            // 2. 确定图标路径
+            string iconPath = paths.LocalIconPath;
+            if (!File.Exists(iconPath))
             {
-                Debug.WriteLine($"CreateDesktopShortcut Error: {ex}");
+                var appExePath = Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrEmpty(appExePath)) iconPath = appExePath;
             }
+
+            // 3. 构建内容
+            // 顺序很重要：Steam 风格通常把 [InternetShortcut] 放在核心位置
+            var urlContent = new StringBuilder();
+
+            urlContent.AppendLine("[InternetShortcut]");
+            urlContent.AppendLine("IDList=");
+            urlContent.AppendLine($"URL={paths.UuidUri}");
+
+            if (!string.IsNullOrEmpty(iconPath))
+            {
+                urlContent.AppendLine("IconIndex=0");
+                urlContent.AppendLine($"IconFile={iconPath}");
+            }
+
+            // Steam 专用的 Property Store 标记 (防止图标变白纸的关键)
+            urlContent.AppendLine("");
+            urlContent.AppendLine("[{000214A0-0000-0000-C000-000000000046}]");
+            urlContent.AppendLine("Prop3=19,0");
+
+            // 4. 关键修正：删除旧文件
+            if (File.Exists(paths.ShortcutPath)) File.Delete(paths.ShortcutPath);
+
+            // 5. 核心修改：使用 Encoding.Unicode (即 UTF-16 LE)
+            // Windows 内部全是 UTF-16。
+            // 使用这种编码写入，Windows 能直接识别 "魔法少女" 这样的路径，
+            // 而不需要 [InternetShortcut.W] 这种复杂的 UTF-7 转码块。
+            // 这也避免了 GBK 系统把 UTF-8 BOM 读成 "锘縖" 的问题。
+            await File.WriteAllTextAsync(paths.ShortcutPath, urlContent.ToString(), Encoding.Unicode);
+
         }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"CreateDesktopShortcut Error: {ex}");
+        }
+    }
 
     public static async Task ExportToSunshine(object game)
     {
