@@ -1,8 +1,11 @@
 using System;
 using System.Reflection;
+using System.Resources;
+using System.Globalization;
 using System.Threading.Tasks;
 using GalgameManager.WinApp.Base.Contracts;
 using GalgameManager.WinApp.Base.Models;
+using GalgameManager.Models;
 using HarmonyLib;
 using PotatoVN.App.PluginBase.Models;
 using Microsoft.UI.Xaml;
@@ -17,6 +20,20 @@ public partial class Plugin : IPlugin
     private IPotatoVnApi _hostApi = null!;
     private PluginData _data = new();
     private Harmony? _harmony;
+    private static ResourceManager? _resourceManager;
+    private static CultureInfo? _pluginCulture;
+
+    private static ResourceManager ResourceManager
+    {
+        get
+        {
+            if (_resourceManager == null)
+                _resourceManager = new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
+            return _resourceManager;
+        }
+    }
+
+    private static string? GetLocalized(string key) => ResourceManager.GetString(key, _pluginCulture);
 
     public PluginInfo Info { get; } = new()
     {
@@ -48,6 +65,71 @@ public partial class Plugin : IPlugin
             _harmony = new Harmony("com.potatovn.plugin.protocol");
             var assembly = Assembly.Load("GalgameManager");
 
+            // --- Get language setting from main app ---
+            var appType = assembly.GetType("GalgameManager.App");
+            if (appType != null)
+            {
+                var getServiceMethod = appType.GetMethod("GetService", BindingFlags.Public | BindingFlags.Static);
+                var localSettingsServiceType = assembly.GetType("GalgameManager.Contracts.Services.ILocalSettingsService");
+                var languageEnumType = assembly.GetType("GalgameManager.Enums.LanguageEnum");
+                var keyValuesType = assembly.GetType("GalgameManager.Enums.KeyValues");
+
+                if (getServiceMethod != null && localSettingsServiceType != null && languageEnumType != null && keyValuesType != null)
+                {
+                    var genericGetServiceMethod = getServiceMethod.MakeGenericMethod(localSettingsServiceType);
+                    var localSettingsServiceInstance = genericGetServiceMethod.Invoke(null, null);
+
+                    var languageKeyField = keyValuesType.GetField("Language", BindingFlags.Public | BindingFlags.Static);
+                    var languageKeyValue = languageKeyField?.GetValue(null);
+
+                    if (localSettingsServiceInstance != null && languageKeyValue != null)
+                    {
+                        var readSettingMethod = localSettingsServiceInstance.GetType().GetMethod("ReadSettingAsync");
+                        if (readSettingMethod != null)
+                        {
+                            var genericReadSettingMethod = readSettingMethod.MakeGenericMethod(languageEnumType);
+                            // ReadSettingAsync has optional parameters: key, isLarge, converters, typeNameHandling
+                            // We need to provide all of them for MethodInfo.Invoke
+                            var taskResult = (Task?)genericReadSettingMethod.Invoke(localSettingsServiceInstance, new object?[] { languageKeyValue, false, null, false });
+
+                            if (taskResult != null)
+                            {
+                                await taskResult;
+                                var languageEnumValue = taskResult.GetType().GetProperty("Result")?.GetValue(taskResult);
+
+                                if (languageEnumValue != null)
+                                {
+                                    var langStr = languageEnumValue.ToString();
+                                    string cultureCode = langStr switch
+                                    {
+                                        "ChineseSimplified" => "zh-CN",
+                                        "English" => "en-US",
+                                        "Japanese" => "ja-JP",
+                                        "Auto" => CultureInfo.InstalledUICulture.Name,
+                                        _ => ""
+                                    };
+
+                                    if (!string.IsNullOrEmpty(cultureCode))
+                                    {
+                                        var culture = new CultureInfo(cultureCode);
+
+                                        // 【关键修改】不仅设置线程文化，还保存下来传给 ResourceManager
+                                        CultureInfo.CurrentUICulture = culture;
+                                        CultureInfo.CurrentCulture = culture;
+                                        _pluginCulture = culture;
+
+                                        // Update Plugin Info with localized strings
+                                        Info.Name = GetLocalized("PluginName") ?? "Shortcut & Sunshine";
+                                        Info.Description = GetLocalized("PluginDescription") ?? "Support creating desktop shortcuts (URI) and exporting to Sunshine.";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // --- End get language setting ---
+
             // Hook HomeViewModel.GalFlyout_Opening
             var vmType = assembly.GetType("GalgameManager.ViewModels.HomeViewModel");
             if (vmType != null)
@@ -69,6 +151,9 @@ public partial class Plugin : IPlugin
             System.Diagnostics.Debug.WriteLine($"Plugin Hook Error: {ex}");
         }
     }
+
+
+
 
     private static void GalFlyoutOpeningPostfix(object sender)
     {
@@ -97,6 +182,8 @@ public partial class Plugin : IPlugin
         MenuFlyoutItem? shortcutItem = null;
         MenuFlyoutItem? sunshineItem = null;
 
+        Galgame? castedGame = game as Galgame;
+
         // Check if already added
         foreach (var item in flyout.Items)
         {
@@ -109,7 +196,7 @@ public partial class Plugin : IPlugin
         {
             shortcutItem = new MenuFlyoutItem
             {
-                Text = "创建桌面快捷方式 (URI)",
+                Text = GetLocalized("CreateShortcut") ?? "Create Desktop Shortcut (URI)",
                 Icon = new SymbolIcon(Symbol.Link),
                 Tag = "Plugin_CreateShortcut"
             };
@@ -124,7 +211,7 @@ public partial class Plugin : IPlugin
         {
             sunshineItem = new MenuFlyoutItem
             {
-                Text = "导出到 Sunshine",
+                Text = GetLocalized("ExportToSunshine") ?? "Export to Sunshine",
                 Icon = new SymbolIcon(Symbol.Share), // Or another symbol
                 Tag = "Plugin_ExportSunshine"
             };
@@ -133,6 +220,18 @@ public partial class Plugin : IPlugin
         }
         sunshineItem.DataContext = game;
         sunshineItem.IsEnabled = game != null;
+
+        // Set visibility based on ExePath
+        if (castedGame == null || string.IsNullOrEmpty(castedGame.ExePath))
+        {
+            shortcutItem.Visibility = Visibility.Collapsed;
+            sunshineItem.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            shortcutItem.Visibility = Visibility.Visible;
+            sunshineItem.Visibility = Visibility.Visible;
+        }
     }
 
     private static void AddItemToFlyout(MenuFlyout flyout, MenuFlyoutItem item)
