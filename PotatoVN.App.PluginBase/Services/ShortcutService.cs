@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using PotatoVN.App.PluginBase.Helper;
 using PotatoVN.App.PluginBase.Models;
@@ -57,7 +56,7 @@ public static class ShortcutService
         }
 
         // 2. Prepare .ico Icon (For Desktop Shortcut)
-        var localImagesFolder = await HostFileHelper.GetImageFolderPathAsync();
+        var localImagesFolder = await FileHelper.GetImageFolderPathAsync();
         if (string.IsNullOrEmpty(localImagesFolder))
         {
             localImagesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PotatoVN", "ShortcutIcons");
@@ -94,11 +93,11 @@ public static class ShortcutService
     {
         try
         {
-            // 1. ×¼±¸Â·¾¶×ÊÔ´
+            // 1. å‡†å¤‡è·¯å¾„èµ„æº
             var paths = await PrepareAssetsAsync(game, requireSunshineAssets: false);
             if (paths == null) return;
 
-            // 2. È·¶¨Í¼±êÂ·¾¶
+            // 2. ç¡®å®šå›¾æ ‡è·¯å¾„
             string iconPath = paths.LocalIconPath;
             if (!File.Exists(iconPath))
             {
@@ -106,8 +105,8 @@ public static class ShortcutService
                 if (!string.IsNullOrEmpty(appExePath)) iconPath = appExePath;
             }
 
-            // 3. ¹¹½¨ÄÚÈİ
-            // Ë³ĞòºÜÖØÒª£ºSteam ·ç¸ñÍ¨³£°Ñ [InternetShortcut] ·ÅÔÚºËĞÄÎ»ÖÃ
+            // 3. æ„å»ºå†…å®¹
+            // é¡ºåºå¾ˆé‡è¦ï¼šSteam é£æ ¼é€šå¸¸æŠŠ [InternetShortcut] æ”¾åœ¨æ ¸å¿ƒä½ç½®
             var urlContent = new StringBuilder();
 
             urlContent.AppendLine("[InternetShortcut]");
@@ -120,19 +119,19 @@ public static class ShortcutService
                 urlContent.AppendLine($"IconFile={iconPath}");
             }
 
-            // Steam ×¨ÓÃµÄ Property Store ±ê¼Ç (·ÀÖ¹Í¼±ê±ä°×Ö½µÄ¹Ø¼ü)
+            // Steam ä¸“ç”¨çš„ Property Store æ ‡è®° (é˜²æ­¢å›¾æ ‡å˜ç™½çº¸çš„å…³é”®)
             urlContent.AppendLine("");
             urlContent.AppendLine("[{000214A0-0000-0000-C000-000000000046}]");
             urlContent.AppendLine("Prop3=19,0");
 
-            // 4. ¹Ø¼üĞŞÕı£ºÉ¾³ı¾ÉÎÄ¼ş
+            // 4. å…³é”®ä¿®æ­£ï¼šåˆ é™¤æ—§æ–‡ä»¶
             if (File.Exists(paths.ShortcutPath)) File.Delete(paths.ShortcutPath);
 
-            // 5. ºËĞÄĞŞ¸Ä£ºÊ¹ÓÃ Encoding.Unicode (¼´ UTF-16 LE)
-            // Windows ÄÚ²¿È«ÊÇ UTF-16¡£
-            // Ê¹ÓÃÕâÖÖ±àÂëĞ´Èë£¬Windows ÄÜÖ±½ÓÊ¶±ğ "Ä§·¨ÉÙÅ®" ÕâÑùµÄÂ·¾¶£¬
-            // ¶ø²»ĞèÒª [InternetShortcut.W] ÕâÖÖ¸´ÔÓµÄ UTF-7 ×ªÂë¿é¡£
-            // ÕâÒ²±ÜÃâÁË GBK ÏµÍ³°Ñ UTF-8 BOM ¶Á³É "ï»¿[" µÄÎÊÌâ¡£
+            // 5. æ ¸å¿ƒä¿®æ”¹ï¼šä½¿ç”¨ Encoding.Unicode (å³ UTF-16 LE)
+            // Windows å†…éƒ¨å…¨æ˜¯ UTF-16ã€‚
+            // ä½¿ç”¨è¿™ç§ç¼–ç å†™å…¥ï¼ŒWindows èƒ½ç›´æ¥è¯†åˆ« "é­”æ³•å°‘å¥³" è¿™æ ·çš„è·¯å¾„ï¼Œ
+            // è€Œä¸éœ€è¦ [InternetShortcut.W] è¿™ç§å¤æ‚çš„ UTF-7 è½¬ç å—ã€‚
+            // è¿™ä¹Ÿé¿å…äº† GBK ç³»ç»ŸæŠŠ UTF-8 BOM è¯»æˆ "é”˜ç¸–" çš„é—®é¢˜ã€‚
             await File.WriteAllTextAsync(paths.ShortcutPath, urlContent.ToString(), Encoding.Unicode);
 
         }

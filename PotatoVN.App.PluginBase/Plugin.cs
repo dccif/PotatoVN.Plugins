@@ -1,17 +1,25 @@
-using System;
-using System.Reflection;
-using System.Resources;
-using System.Globalization;
-using System.Threading.Tasks;
-using GalgameManager.WinApp.Base.Contracts;
-using GalgameManager.WinApp.Base.Models;
+using GalgameManager.Enums;
 using GalgameManager.Models;
+using GalgameManager.WinApp.Base.Contracts;
+using GalgameManager.WinApp.Base.Contracts.NavigationApi;
+using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
+using GalgameManager.WinApp.Base.Helpers;
+using GalgameManager.WinApp.Base.Models;
 using HarmonyLib;
-using PotatoVN.App.PluginBase.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using System.Diagnostics;
+using Microsoft.Windows.AppLifecycle;
+using PotatoVN.App.PluginBase.Helper;
+using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Services;
+using System;
+using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
+using System.Reflection;
+using System.Resources;
+using System.Threading.Tasks;
+using Windows.ApplicationModel.Activation;
 
 namespace PotatoVN.App.PluginBase;
 
@@ -45,6 +53,7 @@ public partial class Plugin : IPlugin
     public async Task InitializeAsync(IPotatoVnApi hostApi)
     {
         _hostApi = hostApi;
+        FileHelper.Init(_hostApi.GetPluginPath());
         XamlResourceLocatorFactory.packagePath = _hostApi.GetPluginPath();
         var dataJson = await _hostApi.GetDataAsync();
         if (!string.IsNullOrWhiteSpace(dataJson))
@@ -60,75 +69,83 @@ public partial class Plugin : IPlugin
         }
         _data.PropertyChanged += (_, _) => SaveData();
 
+        // 1. Language Setup
         try
         {
-            _harmony = new Harmony("com.potatovn.plugin.protocol");
-            var assembly = Assembly.Load("GalgameManager");
-
-            // --- Get language setting from main app ---
-            var appType = assembly.GetType("GalgameManager.App");
-            if (appType != null)
+            var language = _hostApi.Language;
+            string cultureCode = language switch
             {
-                var getServiceMethod = appType.GetMethod("GetService", BindingFlags.Public | BindingFlags.Static);
-                var localSettingsServiceType = assembly.GetType("GalgameManager.Contracts.Services.ILocalSettingsService");
-                var languageEnumType = assembly.GetType("GalgameManager.Enums.LanguageEnum");
-                var keyValuesType = assembly.GetType("GalgameManager.Enums.KeyValues");
+                LanguageEnum.ChineseSimplified => "zh-CN",
+                LanguageEnum.English => "en-US",
+                LanguageEnum.Japanese => "ja-JP",
+                _ => CultureInfo.InstalledUICulture.Name
+            };
 
-                if (getServiceMethod != null && localSettingsServiceType != null && languageEnumType != null && keyValuesType != null)
+            if (!string.IsNullOrEmpty(cultureCode))
+            {
+                var culture = new CultureInfo(cultureCode);
+                CultureInfo.CurrentUICulture = culture;
+                CultureInfo.CurrentCulture = culture;
+                _pluginCulture = culture;
+
+                // Update Plugin Info with localized strings
+                Info.Name = GetLocalized("PluginName") ?? "Shortcut & Sunshine";
+                Info.Description = GetLocalized("PluginDescription") ?? "Support creating desktop shortcuts (URI) and exporting to Sunshine.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Plugin] Language Setup Error: {ex}");
+        }
+
+        // 2. URI Activation Handling
+        try
+        {
+            Debugger.Launch();
+            if (_hostApi.ActivationArgs is AppActivationArguments args &&
+                args.Kind == ExtendedActivationKind.Protocol &&
+                args.Data is ProtocolActivatedEventArgs protocolArgs)
+            {
+                var uri = protocolArgs.Uri; // potato-vn://start/{uuid}
+                if (uri.Scheme == "potato-vn")
                 {
-                    var genericGetServiceMethod = getServiceMethod.MakeGenericMethod(localSettingsServiceType);
-                    var localSettingsServiceInstance = genericGetServiceMethod.Invoke(null, null);
+                    bool startGame = false;
+                    string uuidStr = "";
 
-                    var languageKeyField = keyValuesType.GetField("Language", BindingFlags.Public | BindingFlags.Static);
-                    var languageKeyValue = languageKeyField?.GetValue(null);
-
-                    if (localSettingsServiceInstance != null && languageKeyValue != null)
+                    // potato-vn://start/uuid or potato-vn://view/uuid
+                    if (uri.Host == "start")
                     {
-                        var readSettingMethod = localSettingsServiceInstance.GetType().GetMethod("ReadSettingAsync");
-                        if (readSettingMethod != null)
+                        startGame = true;
+                        uuidStr = uri.AbsolutePath.TrimStart('/');
+                    }
+                    else if (uri.Host == "view")
+                    {
+                        startGame = false;
+                        uuidStr = uri.AbsolutePath.TrimStart('/');
+                    }
+
+                    if (!string.IsNullOrEmpty(uuidStr) && Guid.TryParse(uuidStr, out Guid uuid))
+                    {
+                        var allGames = _hostApi.GetAllGames();
+                        var game = allGames.FirstOrDefault(g => g.Uuid == uuid);
+                        if (game != null)
                         {
-                            var genericReadSettingMethod = readSettingMethod.MakeGenericMethod(languageEnumType);
-                            // ReadSettingAsync has optional parameters: key, isLarge, converters, typeNameHandling
-                            // We need to provide all of them for MethodInfo.Invoke
-                            var taskResult = (Task?)genericReadSettingMethod.Invoke(localSettingsServiceInstance, new object?[] { languageKeyValue, false, null, false });
-
-                            if (taskResult != null)
-                            {
-                                await taskResult;
-                                var languageEnumValue = taskResult.GetType().GetProperty("Result")?.GetValue(taskResult);
-
-                                if (languageEnumValue != null)
-                                {
-                                    var langStr = languageEnumValue.ToString();
-                                    string cultureCode = langStr switch
-                                    {
-                                        "ChineseSimplified" => "zh-CN",
-                                        "English" => "en-US",
-                                        "Japanese" => "ja-JP",
-                                        "Auto" => CultureInfo.InstalledUICulture.Name,
-                                        _ => ""
-                                    };
-
-                                    if (!string.IsNullOrEmpty(cultureCode))
-                                    {
-                                        var culture = new CultureInfo(cultureCode);
-
-                                        // 【关键修改】不仅设置线程文化，还保存下来传给 ResourceManager
-                                        CultureInfo.CurrentUICulture = culture;
-                                        CultureInfo.CurrentCulture = culture;
-                                        _pluginCulture = culture;
-
-                                        // Update Plugin Info with localized strings
-                                        Info.Name = GetLocalized("PluginName") ?? "Shortcut & Sunshine";
-                                        Info.Description = GetLocalized("PluginDescription") ?? "Support creating desktop shortcuts (URI) and exporting to Sunshine.";
-                                    }
-                                }
-                            }
+                            _hostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = game, StartGame = startGame });
                         }
                     }
                 }
             }
-            // --- End get language setting ---
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Plugin] Activation Error: {ex}");
+        }
+
+        // 3. Hook Context Menu
+        try
+        {
+            _harmony = new Harmony("com.potatovn.plugin.protocol");
+            var assembly = Assembly.Load("GalgameManager");
 
             // Hook HomeViewModel.GalFlyout_Opening
             var vmType = assembly.GetType("GalgameManager.ViewModels.HomeViewModel");
