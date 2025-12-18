@@ -4,10 +4,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
+using System.Net.Http;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 using PotatoVN.App.PluginBase.Helper;
 using PotatoVN.App.PluginBase.Models;
+using GalgameManager.WinApp.Base.Contracts;
+using Microsoft.UI.Xaml.Controls;
+using GalgameManager.Models;
 
 namespace PotatoVN.App.PluginBase.Services;
 
@@ -18,26 +22,19 @@ public static class ShortcutService
         string VbsPath,           // .vbs Path (Desktop)
         string LocalIconPath,     // .ico Path (Host Images Folder)
         string SunshineIconPath,  // .png Path (Pictures/sunshine)
-        string UuidUri            // potato-vn://start/{uuid}
+        string UuidUri,           // potato-vn://start/{uuid}
+        string Uuid               // {uuid}
     );
 
-    private static async Task<GamePaths?> PrepareAssetsAsync(object game, bool requireSunshineAssets = false)
+    private static async Task<GamePaths?> PrepareAssetsAsync(Galgame game, bool requireSunshineAssets = false)
     {
-        var type = game.GetType();
-        var uuidObj = type.GetProperty("Uuid")?.GetValue(game);
-        // Name is LockableProperty<string>, need to get Value
-        var nameProp = type.GetProperty("Name")?.GetValue(game);
-        string? name = null;
-        if (nameProp != null)
-        {
-            var valProp = nameProp.GetType().GetProperty("Value");
-            name = valProp?.GetValue(nameProp) as string;
-        }
+        var uuid = game.Uuid;
+        var name = game.Name.Value;
 
-        var exePath = type.GetProperty("ExePath")?.GetValue(game) as string;
-        var localPath = type.GetProperty("LocalPath")?.GetValue(game) as string;
+        var exePath = game.ExePath;
+        var localPath = game.LocalPath;
 
-        if (uuidObj is not Guid uuid || string.IsNullOrEmpty(name)) return null;
+        if (string.IsNullOrEmpty(name)) return null;
 
         // 1. Basic Paths
         var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
@@ -86,10 +83,10 @@ public static class ShortcutService
             }
         }
 
-        return new GamePaths(shortcutPath, vbsPath, localIconPath, sunshineIconPath, $"potato-vn://start/{uuid}");
+        return new GamePaths(shortcutPath, vbsPath, localIconPath, sunshineIconPath, $"potato-vn://start/{uuid}", uuid.ToString());
     }
 
-    public static async Task CreateDesktopShortcut(object game)
+    public static async Task CreateDesktopShortcut(Galgame game, IPotatoVnApi api)
     {
         try
         {
@@ -133,53 +130,49 @@ public static class ShortcutService
             // 而不需要 [InternetShortcut.W] 这种复杂的 UTF-7 转码块。
             // 这也避免了 GBK 系统把 UTF-8 BOM 读成 "锘縖" 的问题。
             await File.WriteAllTextAsync(paths.ShortcutPath, urlContent.ToString(), Encoding.Unicode);
-
+            api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("ShortcutCreated") ?? "Desktop shortcut created successfully");
         }
         catch (Exception ex)
         {
+            api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("ShortcutCreateFailed") ?? "Failed to create desktop shortcut");
             Debug.WriteLine($"CreateDesktopShortcut Error: {ex}");
         }
     }
 
-    public static async Task ExportToSunshine(object game)
+    public static async Task ExportToSunshine(Galgame game, IPotatoVnApi api)
     {
         try
         {
             var paths = await PrepareAssetsAsync(game, requireSunshineAssets: true);
             if (paths == null) return;
 
-            await GenerateSilentVbsAsync(game, paths);
-
             const string sunshineConfigPath = @"C:\Program Files\Sunshine\config\apps.json";
             if (!File.Exists(sunshineConfigPath))
             {
                 Debug.WriteLine("Sunshine config not found.");
+                api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineNotFound") ?? "Sunshine configuration file not found. Please ensure Sunshine is installed.");
                 return;
             }
 
             string jsonContent = await File.ReadAllTextAsync(sunshineConfigPath);
 
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var config = JsonSerializer.Deserialize<SunshineConfig>(jsonContent, options) ?? new SunshineConfig();
-            if (config.Apps == null) config.Apps = new List<SunshineApp>();
+            // Using Newtonsoft.Json to match SunshineModels.cs
+            var config = JsonConvert.DeserializeObject<SunshineConfig>(jsonContent) ?? new SunshineConfig();
+            config.Apps ??= new List<SunshineApp>();
 
-            var type = game.GetType();
-            var nameProp = type.GetProperty("Name")?.GetValue(game);
-            string targetAppName = "Unknown Game";
-            if (nameProp != null)
-            {
-                var val = nameProp.GetType().GetProperty("Value")?.GetValue(nameProp) as string;
-                if (!string.IsNullOrEmpty(val)) targetAppName = val;
-            }
+            string targetAppName = game.Name.Value ?? "Unknown Game";
 
-            var cmdString = $"wscript \"{paths.VbsPath}\" ";
+            // New Command Format: cmd /c "start potato-vn://start/{uuid}"
+            var cmdString = $"cmd /c \"start {paths.UuidUri}\"";
+            // Image Filename for covers directory
+            var targetImageName = $"app_{paths.Uuid}.png";
 
             var appEntry = config.Apps.FirstOrDefault(a => a.Name == targetAppName);
 
             if (appEntry != null)
             {
                 appEntry.Cmd = cmdString;
-                appEntry.ImagePath = paths.SunshineIconPath;
+                appEntry.ImagePath = targetImageName;
                 appEntry.AutoDetach = "true";
                 appEntry.WaitAll = "true";
             }
@@ -189,7 +182,7 @@ public static class ShortcutService
                 {
                     Name = targetAppName,
                     Cmd = cmdString,
-                    ImagePath = paths.SunshineIconPath,
+                    ImagePath = targetImageName,
                     AutoDetach = "true",
                     WaitAll = "true",
                     ExitTimeout = "5"
@@ -197,77 +190,122 @@ public static class ShortcutService
                 config.Apps.Add(appEntry);
             }
 
-            var newJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            var newJson = JsonConvert.SerializeObject(config, Formatting.Indented);
 
-            try
-            {
-                await File.WriteAllTextAsync(sunshineConfigPath, newJson);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                await WriteFileElevatedAsync(newJson, sunshineConfigPath);
-            }
+            // Always write elevated because we are updating Program Files and moving images
+            await WriteFileElevatedAsync(newJson, sunshineConfigPath, paths.SunshineIconPath, targetImageName);
+            
+            // Reload Sunshine Configuration via API
+            await ReloadSunshineConfigAsync(config.Apps);
+
+            api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineExported") ?? "Exported to Sunshine successfully");
         }
         catch (Exception ex)
         {
+            api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineExportFailed") ?? "Failed to export to Sunshine");
             Debug.WriteLine($"ExportToSunshine Error: {ex}");
         }
     }
 
-    private static async Task GenerateSilentVbsAsync(object game, GamePaths paths)
+    private static async Task ReloadSunshineConfigAsync(List<SunshineApp> apps)
     {
-        var type = game.GetType();
-        var processName = type.GetProperty("ProcessName")?.GetValue(game) as string;
-        var exePath = type.GetProperty("ExePath")?.GetValue(game) as string;
-
-        if (string.IsNullOrEmpty(processName) && !string.IsNullOrEmpty(exePath))
+        int port = 47990;
+        const string configPath = @"C:\Program Files\Sunshine\config\sunshine.conf";
+        try 
         {
-            processName = Path.GetFileName(exePath);
+            if (File.Exists(configPath))
+            {
+                var lines = await File.ReadAllLinesAsync(configPath);
+                foreach (var line in lines)
+                {
+                    var trim = line.Trim();
+                    if (trim.StartsWith("port") && trim.Contains('='))
+                    {
+                        var val = trim.Split('=')[1].Trim();
+                        if (int.TryParse(val, out int p)) port = p;
+                    }
+                }
+            }
         }
+        catch { }
 
-        var vbsContent = new StringBuilder();
-        vbsContent.AppendLine("Option Explicit");
-        vbsContent.AppendLine("Dim WshShell, strCommand, strProcessName, objWMIService, colProcessList");
-        vbsContent.AppendLine("Set WshShell = CreateObject(\"WScript.Shell\")");
+        using var handler = new HttpClientHandler();
+        handler.ClientCertificateOptions = ClientCertificateOption.Manual;
+        handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
 
-        // Optimized: Launch URI directly using WshShell.Run
-        // The URI is passed as a string. Double quotes are doubled in VBS.
-        // Result VBS: WshShell.Run "potato-vn://start/...", 1, False
-        vbsContent.AppendLine($"strCommand = \"{paths.UuidUri}\"");
-        vbsContent.AppendLine("WshShell.Run strCommand, 1, False");
+        using var client = new HttpClient(handler);
+        var url = $"https://localhost:{port}/api/apps";
+        
+        var payload = new { apps = apps, editApp = (object?)null };
+        var json = JsonConvert.SerializeObject(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        // Process Monitoring (Essential for Sunshine to keep stream open)
-        if (!string.IsNullOrEmpty(processName))
+        var response = await client.PostAsync(url, content);
+        if (!response.IsSuccessStatusCode)
         {
-            vbsContent.AppendLine($"strProcessName = \"{processName}\"");
-            vbsContent.AppendLine("Set objWMIService = GetObject(\"winmgmts:\\\\.\\\\.\\\\root\\\\cimv2\")");
-            vbsContent.AppendLine("WScript.Sleep 5000"); // 5s buffer for game to start
-            vbsContent.AppendLine("Do");
-            // Correctly escaped VBS query string
-            vbsContent.AppendLine("    Set colProcessList = objWMIService.ExecQuery(\"Select * from Win32_Process Where Name = '\" & strProcessName & '\"\")");
-            vbsContent.AppendLine("    If colProcessList.Count = 0 Then Exit Do");
-            vbsContent.AppendLine("    WScript.Sleep 2000");
-            vbsContent.AppendLine("Loop");
+            throw new Exception($"Sunshine API Reload failed: {response.StatusCode}");
         }
-
-        vbsContent.AppendLine("Set WshShell = Nothing");
-
-        await File.WriteAllTextAsync(paths.VbsPath, vbsContent.ToString(), Encoding.Default);
     }
 
-    private static async Task WriteFileElevatedAsync(string content, string destinationPath)
+    private static async Task WriteFileElevatedAsync(string content, string destinationPath, string? sourceImagePath = null, string? targetImageFileName = null)
     {
-        var tempPath = Path.GetTempFileName();
+        var tempJsonPath = Path.GetTempFileName();
+        var tempScriptPath = Path.ChangeExtension(Path.GetTempFileName(), ".ps1");
+        var resultPath = Path.GetTempFileName();
+        
         try
         {
-            await File.WriteAllTextAsync(tempPath, content, Encoding.UTF8);
+            // 1. Write JSON content to a temporary file
+            await File.WriteAllTextAsync(tempJsonPath, content, Encoding.UTF8);
 
-            // Corrected quote escaping
-            var cmdArgs = $"/c copy /y \"{tempPath}\" \"{destinationPath}\"";
+            // Ensure result file doesn't exist before running
+            if (File.Exists(resultPath)) File.Delete(resultPath);
+
+            // 2. Generate PowerShell script
+            var sb = new StringBuilder();
+            sb.AppendLine("$ErrorActionPreference = 'Stop'");
+            sb.AppendLine("try {");
+            sb.AppendLine($"    $destJson = \"{destinationPath}\"");
+            sb.AppendLine($"    $sourceJson = \"{tempJsonPath}\"");
+            
+            // Copy JSON
+            sb.AppendLine("    Copy-Item -Path $sourceJson -Destination $destJson -Force");
+
+            // Handle Image Migration
+            if (!string.IsNullOrEmpty(sourceImagePath) && !string.IsNullOrEmpty(targetImageFileName))
+            {
+                sb.AppendLine($"    $sourceImg = \"{sourceImagePath}\"");
+                sb.AppendLine($"    $targetImgName = \"{targetImageFileName}\"");
+                sb.AppendLine("    $configDir = Split-Path $destJson -Parent");
+                sb.AppendLine("    $coversDir = Join-Path $configDir \"covers\"");
+                
+                // Ensure covers directory exists
+                sb.AppendLine("    if (-not (Test-Path $coversDir)) { New-Item -ItemType Directory -Path $coversDir -Force | Out-Null }");
+                
+                sb.AppendLine("    $destImg = Join-Path $coversDir $targetImgName");
+
+                // Copy Image and Delete Original
+                sb.AppendLine("    if (Test-Path $sourceImg) {");
+                sb.AppendLine("        Copy-Item -Path $sourceImg -Destination $destImg -Force");
+                sb.AppendLine("        Remove-Item -Path $sourceImg -Force");
+                sb.AppendLine("    }");
+            }
+            
+            // Signal Success
+            sb.AppendLine($"    \"SUCCESS\" | Out-File -FilePath \"{resultPath}\" -Encoding UTF8");
+            sb.AppendLine("} catch {");
+            // Signal Failure
+            sb.AppendLine($"    $_ | Out-File -FilePath \"{resultPath}\" -Encoding UTF8");
+            sb.AppendLine("    exit 1");
+            sb.AppendLine("}");
+
+            await File.WriteAllTextAsync(tempScriptPath, sb.ToString(), Encoding.UTF8);
+
+            // 3. Execute PowerShell script elevated
             var startInfo = new ProcessStartInfo
             {
-                FileName = "cmd.exe",
-                Arguments = cmdArgs,
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{tempScriptPath}\"",
                 UseShellExecute = true,
                 Verb = "runas",
                 WindowStyle = ProcessWindowStyle.Hidden,
@@ -278,19 +316,31 @@ public static class ShortcutService
             {
                 var process = Process.Start(startInfo);
                 process?.WaitForExit();
-                if (process != null && process.ExitCode != 0)
-                {
-                    throw new Exception($"Elevated copy failed with code: {process.ExitCode}");
-                }
             });
+
+            if (File.Exists(resultPath))
+            {
+                var result = await File.ReadAllTextAsync(resultPath);
+                if (result.Trim() != "SUCCESS")
+                {
+                    throw new Exception($"Elevated script error: {result}");
+                }
+            }
+            else
+            {
+                throw new Exception("Elevated process finished but returned no status.");
+            }
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            // Cancelled
+            // User cancelled elevation
+            throw new Exception("User cancelled the elevation request.");
         }
         finally
         {
-            if (File.Exists(tempPath)) try { File.Delete(tempPath); } catch { }
+            if (File.Exists(tempJsonPath)) try { File.Delete(tempJsonPath); } catch { }
+            if (File.Exists(tempScriptPath)) try { File.Delete(tempScriptPath); } catch { }
+            if (File.Exists(resultPath)) try { File.Delete(resultPath); } catch { }
         }
     }
 }

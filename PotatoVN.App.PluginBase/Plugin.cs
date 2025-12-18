@@ -3,7 +3,6 @@ using GalgameManager.Models;
 using GalgameManager.WinApp.Base.Contracts;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
-using GalgameManager.WinApp.Base.Helpers;
 using GalgameManager.WinApp.Base.Models;
 using HarmonyLib;
 using Microsoft.UI.Xaml;
@@ -25,7 +24,7 @@ namespace PotatoVN.App.PluginBase;
 
 public partial class Plugin : IPlugin
 {
-    private IPotatoVnApi _hostApi = null!;
+    private static IPotatoVnApi _hostApi = null!;
     private PluginData _data = new();
     private Harmony? _harmony;
     private static ResourceManager? _resourceManager;
@@ -41,7 +40,7 @@ public partial class Plugin : IPlugin
         }
     }
 
-    private static string? GetLocalized(string key) => ResourceManager.GetString(key, _pluginCulture);
+    internal static string? GetLocalized(string key) => ResourceManager.GetString(key, _pluginCulture);
 
     public PluginInfo Info { get; } = new()
     {
@@ -127,7 +126,7 @@ public partial class Plugin : IPlugin
                     {
                         var allGames = _hostApi.GetAllGames();
                         var game = allGames.FirstOrDefault(g => g.Uuid == uuid);
-                        Debugger.Launch();
+                        // Debugger.Launch();
                         if (game != null)
                         {
                             try
@@ -138,9 +137,13 @@ public partial class Plugin : IPlugin
 
                                 if (invokeMethod != null)
                                 {
+#pragma warning disable CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
+#pragma warning disable CS8602 // 解引用可能出现空引用。
                                     await (Task)invokeMethod.Invoke(null, new object[] { new Action(() =>
                                         _hostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = game, StartGame = startGame })
                                     ) });
+#pragma warning restore CS8602 // 解引用可能出现空引用。
+#pragma warning restore CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
                                 }
                             }
                             catch (Exception ex)
@@ -294,17 +297,17 @@ public partial class Plugin : IPlugin
 
     private static async void CreateShortcut_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement item && item.DataContext != null)
+        if (sender is FrameworkElement item && item.DataContext is Galgame game)
         {
-            await ShortcutService.CreateDesktopShortcut(item.DataContext);
+            await ShortcutService.CreateDesktopShortcut(game, _hostApi);
         }
     }
 
     private static async void ExportSunshine_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement item && item.DataContext != null)
+        if (sender is FrameworkElement item && item.DataContext is Galgame game)
         {
-            await ShortcutService.ExportToSunshine(item.DataContext);
+            await ShortcutService.ExportToSunshine(game, _hostApi);
         }
     }
 

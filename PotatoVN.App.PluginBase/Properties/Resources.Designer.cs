@@ -77,5 +77,68 @@ namespace PotatoVN.App.PluginBase.Properties {
                 return ResourceManager.GetString("ExportToSunshine", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   查找类似 Support creating desktop shortcuts (URI) or exporting to Sunshine. 的本地化字符串。
+        /// </summary>
+        internal static string PluginDescription {
+            get {
+                return ResourceManager.GetString("PluginDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Shortcut &amp; Sunshine 的本地化字符串。
+        /// </summary>
+        internal static string PluginName {
+            get {
+                return ResourceManager.GetString("PluginName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Desktop shortcut created successfully 的本地化字符串。
+        /// </summary>
+        internal static string ShortcutCreated {
+            get {
+                return ResourceManager.GetString("ShortcutCreated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to create desktop shortcut 的本地化字符串。
+        /// </summary>
+        internal static string ShortcutCreateFailed {
+            get {
+                return ResourceManager.GetString("ShortcutCreateFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Exported to Sunshine successfully 的本地化字符串。
+        /// </summary>
+        internal static string SunshineExported {
+            get {
+                return ResourceManager.GetString("SunshineExported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Failed to export to Sunshine 的本地化字符串。
+        /// </summary>
+        internal static string SunshineExportFailed {
+            get {
+                return ResourceManager.GetString("SunshineExportFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Sunshine configuration file not found. Please ensure Sunshine is installed. 的本地化字符串。
+        /// </summary>
+        internal static string SunshineNotFound {
+            get {
+                return ResourceManager.GetString("SunshineNotFound", resourceCulture);
+            }
+        }
     }
 }
