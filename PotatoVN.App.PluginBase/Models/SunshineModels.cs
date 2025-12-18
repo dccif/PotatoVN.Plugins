@@ -4,105 +4,183 @@ using System.Collections.Generic;
 
 namespace PotatoVN.App.PluginBase.Models;
 
-// 1. ¸ùÅäÖÃ
 public class SunshineConfig
 {
-    // ¼æÈİ´¦Àí£ºenv ¿ÉÄÜÊÇ×Ö·û´® "" (Èç¹ûÄãÃ»Åä¹ı) Ò²¿ÉÄÜÊÇ×Öµä {"KEY": "VAL"}
-    [JsonProperty("env")]
+    // --- 1. ç¯å¢ƒå˜é‡ (Env) ---
+    // å…¼å®¹ï¼š{} (å¯¹è±¡), "" (ç©ºå­—ç¬¦ä¸²), null, ç”šè‡³ "null" å­—ç¬¦ä¸²
+    [JsonProperty("env", NullValueHandling = NullValueHandling.Ignore)]
     public JToken? EnvToken { get; set; }
 
     [JsonIgnore]
     public Dictionary<string, string> Env
     {
-        get
-        {
-            if (EnvToken is JObject obj)
-                return obj.ToObject<Dictionary<string, string>>() ?? new();
-            return new Dictionary<string, string>();
-        }
+        get => JsonSafeParse.GetSafeDictionary<string, string>(EnvToken);
         set => EnvToken = value != null ? JToken.FromObject(value) : null;
     }
 
-    [JsonProperty("apps")]
+    [JsonProperty("apps", NullValueHandling = NullValueHandling.Ignore)]
     public List<SunshineApp> Apps { get; set; } = new();
 }
 
-// 2. App ¶¨Òå
 public class SunshineApp
 {
-    [JsonProperty("name")]
+    [JsonProperty("name", NullValueHandling = NullValueHandling.Ignore)]
     public string Name { get; set; } = string.Empty;
 
-    [JsonProperty("output")]
+    [JsonProperty("output", NullValueHandling = NullValueHandling.Ignore)]
     public string Output { get; set; } = string.Empty;
 
-    [JsonProperty("cmd")]
+    [JsonProperty("cmd", NullValueHandling = NullValueHandling.Ignore)]
     public string Cmd { get; set; } = string.Empty;
 
-    [JsonProperty("exclude-global-prep-cmd")]
-    public string ExcludeGlobalPrepCmd { get; set; } = "false";
+    // --- 2. åˆ—è¡¨ç±»å‹çš„å­—æ®µ (Lists) ---
+    // è¿™äº›å­—æ®µåœ¨ C++ å¯èƒ½ä¼šè¢«å­˜ä¸º null, "", "null", æˆ–è€…æ­£å¸¸çš„ []
 
-    [JsonProperty("elevated")]
-    public string Elevated { get; set; } = "false";
+    // Detached (åˆ†ç¦»è¿›ç¨‹åˆ—è¡¨)
+    [JsonProperty("detached", NullValueHandling = NullValueHandling.Ignore)]
+    public JToken? DetachedToken { get; set; }
 
-    [JsonProperty("auto-detach")]
-    public string AutoDetach { get; set; } = "true";
+    [JsonIgnore]
+    public List<string> Detached
+    {
+        get => JsonSafeParse.GetSafeList<string>(DetachedToken);
+        set => DetachedToken = value != null ? JToken.FromObject(value) : null;
+    }
 
-    [JsonProperty("wait-all")]
-    public string WaitAll { get; set; } = "true";
+    // PrepCmd (å‡†å¤‡å‘½ä»¤åˆ—è¡¨)
+    [JsonProperty("prep-cmd", NullValueHandling = NullValueHandling.Ignore)]
+    public JToken? PrepCmdToken { get; set; }
 
-    [JsonProperty("exit-timeout")]
-    public string ExitTimeout { get; set; } = "5";
+    [JsonIgnore]
+    public List<SunshinePrepCmd> PrepCmd
+    {
+        get => JsonSafeParse.GetSafeList<SunshinePrepCmd>(PrepCmdToken);
+        set => PrepCmdToken = value != null ? JToken.FromObject(value) : null;
+    }
 
-    [JsonProperty("image-path")]
-    public string ImagePath { get; set; } = string.Empty;
-
-    [JsonProperty("working-dir")]
-    public string WorkingDir { get; set; } = string.Empty;
-
-    // 3. ²Ëµ¥ÃüÁî (menu-cmd)
-    // ĞŞ¸´µÄºËĞÄ£ºÊ¹ÓÃ JToken ½ÓÊÕÔ­Ê¼ JSON Êı¾İ
-    // ÕâÑùÎŞÂÛÊÇ Êı×é [] »¹ÊÇ ×Ö·û´® "null"£¬¶¼²»»áÔÚ·´ĞòÁĞ»¯Ê±±¨´í
-    [JsonProperty("menu-cmd")]
+    // MenuCmd (èœå•å‘½ä»¤åˆ—è¡¨)
+    [JsonProperty("menu-cmd", NullValueHandling = NullValueHandling.Ignore)]
     public JToken? MenuCmdToken { get; set; }
 
-    // Ìá¹©¸ø´úÂëÊ¹ÓÃµÄÇ¿ÀàĞÍ List
     [JsonIgnore]
     public List<SunshineMenuCmd> MenuCmd
     {
-        get
-        {
-            // Èç¹û JSON ÀïÊÇÊı×é£¬Õı³£×ª»»
-            if (MenuCmdToken is JArray arr)
-            {
-                return arr.ToObject<List<SunshineMenuCmd>>() ?? new();
-            }
-            // Èç¹ûÊÇ "null" ×Ö·û´®¡¢null Öµ»òÆäËû·ÇÊı×éÀàĞÍ£¬·µ»Ø¿ÕÁĞ±í£¬±ÜÃâ±ÀÀ£
-            return new List<SunshineMenuCmd>();
-        }
-        set
-        {
-            // Ğ´ÈëÊ±£¬Ê¼ÖÕ½«ÆäĞòÁĞ»¯Îª±ê×¼µÄ JSON ½á¹¹
-            if (value != null)
-                MenuCmdToken = JToken.FromObject(value);
-            else
-                MenuCmdToken = null;
-        }
+        get => JsonSafeParse.GetSafeList<SunshineMenuCmd>(MenuCmdToken);
+        set => MenuCmdToken = value != null ? JToken.FromObject(value) : null;
     }
+
+    // --- 3. åŸºç¡€ç±»å‹å…¼å®¹æ€§å¤„ç† ---
+    // è™½ç„¶ Sunshine é€šå¸¸ç”¨ string "true"/"false"ï¼Œä½†ä¸ºäº†é˜²æ­¢ç”¨æˆ·æ‰‹å†™æˆ boolean true/false
+    // è¿™é‡Œä½¿ç”¨ string æ¥æ”¶ï¼Œä½†é€šè¿‡ helper ç¡®ä¿è½¬æ¢å®‰å…¨
+
+    [JsonProperty("elevated", NullValueHandling = NullValueHandling.Ignore)]
+    public object? ElevatedRaw { get; set; } // æ¥æ”¶ string æˆ– bool
+
+    [JsonIgnore]
+    public string Elevated
+    {
+        get => ElevatedRaw?.ToString()?.ToLower() ?? "false";
+        set => ElevatedRaw = (value == "false") ? null : value; // å†™ï¼šå¦‚æœæ˜¯ falseï¼Œå­˜ä¸º null (ä¸å†™å…¥)
+    }
+
+    [JsonProperty("auto-detach", NullValueHandling = NullValueHandling.Ignore)]
+    public object? AutoDetachRaw { get; set; }
+
+    [JsonIgnore]
+    public string AutoDetach
+    {
+        get => AutoDetachRaw?.ToString()?.ToLower() ?? "true";
+        set => AutoDetachRaw = value;
+    }
+
+    [JsonProperty("wait-all", NullValueHandling = NullValueHandling.Ignore)]
+    public string WaitAll { get; set; } = "true";
+
+    [JsonProperty("exit-timeout", NullValueHandling = NullValueHandling.Ignore)]
+    public string ExitTimeout { get; set; } = "5";
+
+    [JsonProperty("image-path", NullValueHandling = NullValueHandling.Ignore)]
+    public string ImagePath { get; set; } = string.Empty;
+
+    [JsonProperty("working-dir", NullValueHandling = NullValueHandling.Ignore)]
+    public string WorkingDir { get; set; } = string.Empty;
+
+    [JsonProperty("exclude-global-prep-cmd", NullValueHandling = NullValueHandling.Ignore)]
+    public string ExcludeGlobalPrepCmd { get; set; } = "false";
 }
 
-// 4. ×Ó²Ëµ¥Ïî¶¨Òå
+// å®šä¹‰ PrepCmd
+public class SunshinePrepCmd
+{
+    [JsonProperty("do", NullValueHandling = NullValueHandling.Ignore)]
+    public string Do { get; set; } = string.Empty;
+
+    [JsonProperty("undo", NullValueHandling = NullValueHandling.Ignore)]
+    public string Undo { get; set; } = string.Empty;
+
+    [JsonProperty("elevated", NullValueHandling = NullValueHandling.Ignore)]
+    public string Elevated { get; set; } = "false";
+}
+
+// å®šä¹‰ MenuCmd
 public class SunshineMenuCmd
 {
-    [JsonProperty("id")]
+    [JsonProperty("id", NullValueHandling = NullValueHandling.Ignore)]
     public string Id { get; set; } = string.Empty;
 
-    [JsonProperty("name")]
+    [JsonProperty("name", NullValueHandling = NullValueHandling.Ignore)]
     public string Name { get; set; } = string.Empty;
 
-    [JsonProperty("cmd")]
+    [JsonProperty("cmd", NullValueHandling = NullValueHandling.Ignore)]
     public string Cmd { get; set; } = string.Empty;
 
-    [JsonProperty("elevated")]
+    [JsonProperty("elevated", NullValueHandling = NullValueHandling.Ignore)]
     public string Elevated { get; set; } = "false";
+}
+
+// --- æ ¸å¿ƒå·¥å…·ç±»ï¼šå®‰å…¨è§£æå™¨ ---
+// å°†è¿™æ®µä»£ç æ”¾åœ¨åŒä¸€ä¸ªæ–‡ä»¶æˆ–å…¬å…±å·¥å…·ç±»ä¸­
+public static class JsonSafeParse
+{
+    // å®‰å…¨è·å–åˆ—è¡¨ï¼šå¤„ç† [], null, "", "null", ç”šè‡³å•ä¸ªå¯¹è±¡çš„æƒ…å†µ
+    public static List<T> GetSafeList<T>(JToken? token)
+    {
+        if (token == null) return new List<T>();
+
+        // 1. å¦‚æœæ˜¯æ ‡å‡†çš„æ•°ç»„
+        if (token.Type == JTokenType.Array)
+        {
+            return token.ToObject<List<T>>() ?? new List<T>();
+        }
+
+        // 2. æŸäº›æ€ªå¼‚æƒ…å†µï¼šå¦‚æœæ˜¯å•ä¸ªå¯¹è±¡ï¼Œä½†ä»£ç æœŸæœ› List (å®¹é”™)
+        // ä¾‹å¦‚ç”¨æˆ·æŠŠ "prep-cmd": [...] å†™æˆäº† "prep-cmd": { ... }
+        if (token.Type == JTokenType.Object)
+        {
+            try
+            {
+                T? item = token.ToObject<T>();
+                if (item != null) return new List<T> { item };
+            }
+            catch { /* å¿½ç•¥è½¬æ¢å¤±è´¥ */ }
+        }
+
+        // 3. å…¶å®ƒæƒ…å†µ (String, Null, etc.) å…¨éƒ¨è¿”å›ç©ºåˆ—è¡¨
+        return new List<T>();
+    }
+
+    // å®‰å…¨è·å–å­—å…¸ï¼šå¤„ç† {}, null, "", "null"
+    public static Dictionary<K, V> GetSafeDictionary<K, V>(JToken? token) where K : notnull
+    {
+        if (token == null) return new Dictionary<K, V>();
+
+        // åªæœ‰å½“å®ƒæ˜¯çœŸæ­£çš„ Object æ—¶æ‰è½¬æ¢
+        if (token.Type == JTokenType.Object)
+        {
+            return token.ToObject<Dictionary<K, V>>() ?? new Dictionary<K, V>();
+        }
+
+        // å¦‚æœæ˜¯ String ("") æˆ–å…¶ä»–ç±»å‹ï¼Œè¿”å›ç©ºå­—å…¸ï¼Œé¿å…æŠ¥é”™
+        return new Dictionary<K, V>();
+    }
 }

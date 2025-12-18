@@ -100,7 +100,7 @@ public partial class Plugin : IPlugin
 
         // 2. URI Activation Handling
         try
-        {          
+        {
             if (_hostApi.ActivationArgs is AppActivationArguments args &&
                 args.Kind == ExtendedActivationKind.Protocol &&
                 args.Data is ProtocolActivatedEventArgs protocolArgs)
@@ -184,9 +184,6 @@ public partial class Plugin : IPlugin
             System.Diagnostics.Debug.WriteLine($"Plugin Hook Error: {ex}");
         }
     }
-
-
-
 
     private static void GalFlyoutOpeningPostfix(object sender)
     {
