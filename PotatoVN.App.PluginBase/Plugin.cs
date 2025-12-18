@@ -100,8 +100,7 @@ public partial class Plugin : IPlugin
 
         // 2. URI Activation Handling
         try
-        {
-            Debugger.Launch();
+        {          
             if (_hostApi.ActivationArgs is AppActivationArguments args &&
                 args.Kind == ExtendedActivationKind.Protocol &&
                 args.Data is ProtocolActivatedEventArgs protocolArgs)
@@ -128,9 +127,26 @@ public partial class Plugin : IPlugin
                     {
                         var allGames = _hostApi.GetAllGames();
                         var game = allGames.FirstOrDefault(g => g.Uuid == uuid);
+                        Debugger.Launch();
                         if (game != null)
                         {
-                            _hostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = game, StartGame = startGame });
+                            try
+                            {
+                                var assembly = Assembly.Load("GalgameManager");
+                                var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
+                                var invokeMethod = AccessTools.Method(helperType, "InvokeAsync", new[] { typeof(Action) });
+
+                                if (invokeMethod != null)
+                                {
+                                    await (Task)invokeMethod.Invoke(null, new object[] { new Action(() =>
+                                        _hostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = game, StartGame = startGame })
+                                    ) });
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[Plugin] Navigation Error: {ex}");
+                            }
                         }
                     }
                 }
