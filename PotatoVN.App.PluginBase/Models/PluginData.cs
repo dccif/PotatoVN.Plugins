@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace PotatoVN.App.PluginBase.Models;
 
@@ -12,4 +12,9 @@ public partial class PluginData : ObservableRecipient
 {
     //标记为ObservableProperty的变量会自动生成一个大写开头的属性，如这里会生成一个TestBool属性，之后应该永远使用这个属性而不是字段本身
     [ObservableProperty] private bool _testBool; 
+
+    /// <summary>
+    /// 是否尝试使用管理员权限（ETW）进行检测
+    /// </summary>
+    [ObservableProperty] private bool _useAdminMode = true;
 }
