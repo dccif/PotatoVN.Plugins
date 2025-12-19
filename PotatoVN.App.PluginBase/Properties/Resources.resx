@@ -144,4 +144,10 @@
   <data name="SunshineExportFailed" xml:space="preserve">
     <value>Failed to export to Sunshine</value>
   </data>
+  <data name="SunshineAlreadyExists" xml:space="preserve">
+    <value>Application already exists in Sunshine.</value>
+  </data>
+  <data name="ShortcutAlreadyExists" xml:space="preserve">
+    <value>Shortcut already exists on desktop.</value>
+  </data>
 </root>

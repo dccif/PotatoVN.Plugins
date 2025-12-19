@@ -144,4 +144,10 @@
   <data name="SunshineExportFailed" xml:space="preserve">
     <value>导出到 Sunshine失败</value>
   </data>
+  <data name="SunshineAlreadyExists" xml:space="preserve">
+    <value>该应用已存在于 Sunshine 中</value>
+  </data>
+  <data name="ShortcutAlreadyExists" xml:space="preserve">
+    <value>桌面快捷方式已存在</value>
+  </data>
 </root>

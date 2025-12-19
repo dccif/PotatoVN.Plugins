@@ -144,4 +144,10 @@
   <data name="SunshineExportFailed" xml:space="preserve">
     <value>Sunshine へのエクスポートに失敗しました</value>
   </data>
+  <data name="SunshineAlreadyExists" xml:space="preserve">
+    <value>このアプリケーションはすでに Sunshine に存在します。</value>
+  </data>
+  <data name="ShortcutAlreadyExists" xml:space="preserve">
+    <value>デスクトップショートカットはすでに存在します。</value>
+  </data>
 </root>

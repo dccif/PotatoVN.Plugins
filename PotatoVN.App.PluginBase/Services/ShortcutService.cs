@@ -26,7 +26,7 @@ public static class ShortcutService
         string Uuid               // {uuid}
     );
 
-    private static async Task<GamePaths?> PrepareAssetsAsync(Galgame game, bool requireSunshineAssets = false)
+    private static async Task<GamePaths?> PrepareAssetsAsync(Galgame game, string? tempSunshineDir = null)
     {
         var uuid = game.Uuid;
         var name = game.Name.Value;
@@ -69,13 +69,11 @@ public static class ShortcutService
 
         // 3. Prepare .png Icon (For Sunshine)
         string sunshineIconPath = string.Empty;
-        if (requireSunshineAssets)
+        if (!string.IsNullOrEmpty(tempSunshineDir))
         {
-            var myPictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-            var sunshineDir = Path.Combine(myPictures, "sunshine");
-            if (!Directory.Exists(sunshineDir)) Directory.CreateDirectory(sunshineDir);
+            if (!Directory.Exists(tempSunshineDir)) Directory.CreateDirectory(tempSunshineDir);
 
-            sunshineIconPath = Path.Combine(sunshineDir, $"{uuid}.png");
+            sunshineIconPath = Path.Combine(tempSunshineDir, $"{uuid}.png");
 
             if (!File.Exists(sunshineIconPath) && !string.IsNullOrEmpty(gameExePath) && File.Exists(gameExePath))
             {
@@ -91,10 +89,25 @@ public static class ShortcutService
         try
         {
             // 1. 准备路径资源
-            var paths = await PrepareAssetsAsync(game, requireSunshineAssets: false);
+            var paths = await PrepareAssetsAsync(game, tempSunshineDir: null);
             if (paths == null) return;
 
-            // 2. 确定图标路径
+            // 2. 检查是否已存在且指向正确的 URI
+            if (File.Exists(paths.ShortcutPath))
+            {
+                try
+                {
+                    var existingContent = await File.ReadAllTextAsync(paths.ShortcutPath);
+                    if (existingContent.Contains($"URL={paths.UuidUri}"))
+                    {
+                        api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("ShortcutAlreadyExists") ?? "Shortcut already exists on desktop.");
+                        return;
+                    }
+                }
+                catch { /* 忽略读取错误，继续创建流程 */ }
+            }
+
+            // 3. 确定图标路径
             string iconPath = paths.LocalIconPath;
             if (!File.Exists(iconPath))
             {
@@ -141,24 +154,65 @@ public static class ShortcutService
 
     public static async Task ExportToSunshine(Galgame game, IPotatoVnApi api)
     {
+        string? tempDir = null;
         try
         {
-            var paths = await PrepareAssetsAsync(game, requireSunshineAssets: true);
-            if (paths == null) return;
+            // 1. Try to fetch current apps list (API first, then File)
+            List<SunshineApp>? currentApps = null;
+            bool isApiMode = false;
+            const string sunshineConfigPath = @"C:\Program Files\Sunshine\config\apps.json";
 
-            List<SunshineApp>? runningApps = null;
             try
             {
-                runningApps = await GetSunshineAppsAsync();
+                currentApps = await GetSunshineAppsAsync();
+                isApiMode = true;
             }
-            catch (Exception)
+            catch
             {
-                // Sunshine API not reachable
+                // API failed, try reading config file
+                if (File.Exists(sunshineConfigPath))
+                {
+                    try
+                    {
+                        var json = await File.ReadAllTextAsync(sunshineConfigPath);
+                        var config = JsonConvert.DeserializeObject<SunshineConfig>(json);
+                        currentApps = config?.Apps ?? new List<SunshineApp>();
+                    }
+                    catch { /* Ignore file parse errors */ }
+                }
             }
 
-            if (runningApps != null)
+            // 2. If no apps list found (Sunshine not installed or configured)
+            if (currentApps == null)
             {
-                await ExportToSunshineRuntimeAsync(game, paths, runningApps, api);
+                api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineNotFound") ?? "Sunshine configuration file not found. Please ensure Sunshine is installed.");
+                return;
+            }
+
+            // 3. Check if app with this UUID already exists
+            // Command pattern: cmd /c "start potato-vn://start/{uuid}"
+            var uuidStr = game.Uuid.ToString();
+            bool alreadyExists = currentApps.Any(app => !string.IsNullOrEmpty(app.Cmd) && app.Cmd.Contains(uuidStr));
+
+            if (alreadyExists)
+            {
+                // Already added: Skip image extraction and upload
+                api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineAlreadyExists") ?? "Application already exists in Sunshine.");
+                return;
+            }
+
+            // 4. Create Temp Directory for Sunshine Assets
+            tempDir = Path.Combine(Path.GetTempPath(), $"PotatoVN_Sunshine_{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+
+            // 5. Prepare Assets (Extract Icon, etc.)
+            var paths = await PrepareAssetsAsync(game, tempSunshineDir: tempDir);
+            if (paths == null) return;
+
+            // 6. Execute Export
+            if (isApiMode)
+            {
+                await ExportToSunshineRuntimeAsync(game, paths, currentApps, api);
             }
             else
             {
@@ -169,6 +223,14 @@ public static class ShortcutService
         {
             api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineExportFailed") ?? "Failed to export to Sunshine");
             Debug.WriteLine($"ExportToSunshine Error: {ex}");
+        }
+        finally
+        {
+            // 7. Cleanup Temp Directory
+            if (!string.IsNullOrEmpty(tempDir) && Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { /* Ignore cleanup errors */ }
+            }
         }
     }
 
@@ -298,7 +360,7 @@ public static class ShortcutService
         handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
 
         var client = new HttpClient(handler);
-        client.BaseAddress = new Uri($"https://localhost:{port}/");
+        client.BaseAddress = new Uri($"https://127.0.0.1:{port}/");
 
         // Add Basic Auth header (matching PS1 script logic)
         var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));

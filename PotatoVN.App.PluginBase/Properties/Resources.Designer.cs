@@ -115,6 +115,15 @@ namespace PotatoVN.App.PluginBase.Properties {
         }
         
         /// <summary>
+        ///   查找类似 Application already exists in Sunshine. 的本地化字符串。
+        /// </summary>
+        internal static string SunshineAlreadyExists {
+            get {
+                return ResourceManager.GetString("SunshineAlreadyExists", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Exported to Sunshine successfully 的本地化字符串。
         /// </summary>
         internal static string SunshineExported {
