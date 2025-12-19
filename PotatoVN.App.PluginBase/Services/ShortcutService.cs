@@ -146,59 +146,24 @@ public static class ShortcutService
             var paths = await PrepareAssetsAsync(game, requireSunshineAssets: true);
             if (paths == null) return;
 
-            const string sunshineConfigPath = @"C:\Program Files\Sunshine\config\apps.json";
-            if (!File.Exists(sunshineConfigPath))
+            List<SunshineApp>? runningApps = null;
+            try
             {
-                Debug.WriteLine("Sunshine config not found.");
-                api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineNotFound") ?? "Sunshine configuration file not found. Please ensure Sunshine is installed.");
-                return;
+                runningApps = await GetSunshineAppsAsync();
+            }
+            catch (Exception)
+            {
+                // Sunshine API not reachable
             }
 
-            string jsonContent = await File.ReadAllTextAsync(sunshineConfigPath);
-
-            // Using Newtonsoft.Json to match SunshineModels.cs
-            var config = JsonConvert.DeserializeObject<SunshineConfig>(jsonContent) ?? new SunshineConfig();
-            config.Apps ??= new List<SunshineApp>();
-
-            string targetAppName = game.Name.Value ?? "Unknown Game";
-
-            // New Command Format: cmd /c "start potato-vn://start/{uuid}"
-            var cmdString = $"cmd /c \"start {paths.UuidUri}\"";
-            // Image Filename for covers directory
-            var targetImageName = $"app_{paths.Uuid}.png";
-
-            var appEntry = config.Apps.FirstOrDefault(a => a.Name == targetAppName);
-
-            if (appEntry != null)
+            if (runningApps != null)
             {
-                appEntry.Cmd = cmdString;
-                appEntry.ImagePath = targetImageName;
-                appEntry.AutoDetach = "true";
-                appEntry.WaitAll = "true";
+                await ExportToSunshineRuntimeAsync(game, paths, runningApps, api);
             }
             else
             {
-                appEntry = new SunshineApp
-                {
-                    Name = targetAppName,
-                    Cmd = cmdString,
-                    ImagePath = targetImageName,
-                    AutoDetach = "true",
-                    WaitAll = "true",
-                    ExitTimeout = "5"
-                };
-                config.Apps.Add(appEntry);
+                await ExportToSunshineFileModeAsync(game, paths, api);
             }
-
-            var newJson = JsonConvert.SerializeObject(config, Formatting.Indented);
-
-            // Always write elevated because we are updating Program Files and moving images
-            await WriteFileElevatedAsync(newJson, sunshineConfigPath, paths.SunshineIconPath, targetImageName);
-            
-            // Reload Sunshine Configuration via API
-            await ReloadSunshineConfigAsync(config.Apps);
-
-            api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineExported") ?? "Exported to Sunshine successfully");
         }
         catch (Exception ex)
         {
@@ -207,11 +172,108 @@ public static class ShortcutService
         }
     }
 
-    private static async Task ReloadSunshineConfigAsync(List<SunshineApp> apps)
+    private static async Task ExportToSunshineRuntimeAsync(Galgame game, GamePaths paths, List<SunshineApp> currentApps, IPotatoVnApi api)
+    {
+        try
+        {
+            // 1. Upload Image
+            var imageKey = await UploadImageToSunshineAsync(paths.SunshineIconPath, paths.Uuid);
+
+            // 2. Prepare App Data
+            var targetAppName = game.Name.Value ?? "Unknown Game";
+            var cmdString = $"cmd /c \"start {paths.UuidUri}\"";
+
+            var targetApp = currentApps.FirstOrDefault(a => a.Name == targetAppName);
+            if (targetApp != null)
+            {
+                targetApp.Cmd = cmdString;
+                targetApp.ImagePath = imageKey;
+                targetApp.AutoDetach = "true";
+                targetApp.WaitAll = "true";
+            }
+            else
+            {
+                targetApp = new SunshineApp
+                {
+                    Name = targetAppName,
+                    Cmd = cmdString,
+                    ImagePath = imageKey,
+                    AutoDetach = "true",
+                    WaitAll = "true",
+                    ExitTimeout = "5"
+                };
+                currentApps.Add(targetApp);
+            }
+
+            // 3. Save
+            await SaveSunshineAppsAsync(currentApps, targetApp);
+            api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineExported") ?? "Exported to Sunshine successfully");
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Runtime export failed: {ex.Message}", ex);
+        }
+    }
+
+    private static async Task ExportToSunshineFileModeAsync(Galgame game, GamePaths paths, IPotatoVnApi api)
+    {
+        const string sunshineConfigPath = @"C:\Program Files\Sunshine\config\apps.json";
+        if (!File.Exists(sunshineConfigPath))
+        {
+            Debug.WriteLine("Sunshine config not found.");
+            api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineNotFound") ?? "Sunshine configuration file not found. Please ensure Sunshine is installed.");
+            return;
+        }
+
+        string jsonContent = await File.ReadAllTextAsync(sunshineConfigPath);
+        var config = JsonConvert.DeserializeObject<SunshineConfig>(jsonContent) ?? new SunshineConfig();
+        config.Apps ??= new List<SunshineApp>();
+
+        string targetAppName = game.Name.Value ?? "Unknown Game";
+        var cmdString = $"cmd /c \"start {paths.UuidUri}\"";
+        var targetImageName = $"app_{paths.Uuid}.png";
+
+        var appEntry = config.Apps.FirstOrDefault(a => a.Name == targetAppName);
+
+        if (appEntry != null)
+        {
+            appEntry.Cmd = cmdString;
+            appEntry.ImagePath = targetImageName;
+            appEntry.AutoDetach = "true";
+            appEntry.WaitAll = "true";
+        }
+        else
+        {
+            appEntry = new SunshineApp
+            {
+                Name = targetAppName,
+                Cmd = cmdString,
+                ImagePath = targetImageName,
+                AutoDetach = "true",
+                WaitAll = "true",
+                ExitTimeout = "5"
+            };
+            config.Apps.Add(appEntry);
+        }
+
+        var newJson = JsonConvert.SerializeObject(config, Formatting.Indented);
+
+        await WriteFileElevatedAsync(newJson, sunshineConfigPath, paths.SunshineIconPath, targetImageName);
+
+        try
+        {
+            await SaveSunshineAppsAsync(config.Apps);
+        }
+        catch { /* Ignore */ }
+
+        api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineExported") ?? "Exported to Sunshine successfully");
+    }
+
+    private static async Task<HttpClient> GetSunshineHttpClientAsync()
     {
         int port = 47990;
         const string configPath = @"C:\Program Files\Sunshine\config\sunshine.conf";
-        try 
+        try
         {
             if (File.Exists(configPath))
             {
@@ -229,22 +291,58 @@ public static class ShortcutService
         }
         catch { }
 
-        using var handler = new HttpClientHandler();
+        var handler = new HttpClientHandler();
         handler.ClientCertificateOptions = ClientCertificateOption.Manual;
         handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
 
-        using var client = new HttpClient(handler);
-        var url = $"https://localhost:{port}/api/apps";
-        
-        var payload = new { apps = apps, editApp = (object?)null };
+        var client = new HttpClient(handler);
+        client.BaseAddress = new Uri($"https://localhost:{port}/");
+        return client;
+    }
+
+    private static async Task<List<SunshineApp>> GetSunshineAppsAsync()
+    {
+        using var client = await GetSunshineHttpClientAsync();
+        var response = await client.GetAsync("api/apps");
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        var wrapper = JsonConvert.DeserializeObject<SunshineConfig>(json);
+        return wrapper?.Apps ?? new List<SunshineApp>();
+    }
+
+    private static async Task<string> UploadImageToSunshineAsync(string localImagePath, string uuid)
+    {
+        if (!File.Exists(localImagePath)) return string.Empty;
+
+        using var client = await GetSunshineHttpClientAsync();
+
+        var bytes = await File.ReadAllBytesAsync(localImagePath);
+        var base64 = Convert.ToBase64String(bytes);
+
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var key = $"app_{uuid}_{timestamp}";
+
+        var payload = new { key, data = base64 };
         var json = JsonConvert.SerializeObject(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = await client.PostAsync(url, content);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new Exception($"Sunshine API Reload failed: {response.StatusCode}");
-        }
+        var response = await client.PostAsync("api/covers/upload", content);
+        response.EnsureSuccessStatusCode();
+
+        return $"{key}.png";
+    }
+
+    private static async Task SaveSunshineAppsAsync(List<SunshineApp> apps, SunshineApp? editApp = null)
+    {
+        using var client = await GetSunshineHttpClientAsync();
+
+        var payload = new { apps, editApp };
+        var json = JsonConvert.SerializeObject(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("api/apps", content);
+        response.EnsureSuccessStatusCode();
     }
 
     private static async Task WriteFileElevatedAsync(string content, string destinationPath, string? sourceImagePath = null, string? targetImageFileName = null)
