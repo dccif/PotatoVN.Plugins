@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -9,7 +10,7 @@ namespace PotatoVN.App.PluginBase.Helper;
 
 public static class IconHelper
 {
-    // P/Invoke
+    // --- P/Invoke Definitions ---
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, uint dwFlags);
 
@@ -38,6 +39,23 @@ public static class IconHelper
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyIcon(IntPtr hIcon);
 
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct SHFILEINFO
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    private const uint SHGFI_ICON = 0x100;
+    private const uint SHGFI_LARGEICON = 0x0;
     private const uint LOAD_LIBRARY_AS_DATAFILE = 0x00000002;
     private const uint LOAD_LIBRARY_AS_IMAGE_RESOURCE = 0x00000020;
     private const int RT_GROUP_ICON = 14;
@@ -51,6 +69,7 @@ public static class IconHelper
 
     /// <summary>
     /// Extract high-quality icon as PNG.
+    /// Prioritizes Quality: TryExtractResource -> PrivateExtractIconsW (256) -> SHGetFileInfo
     /// </summary>
     public static async Task<bool> SaveBestIconAsPngAsync(string exePath, string outputPath)
     {
@@ -58,27 +77,40 @@ public static class IconHelper
         {
             // 1. Try raw resource (best for PNG icons inside EXE)
             if (TryExtractResource(exePath, outputPath, asPng: true)) return true;
-            // 2. Fallback to GDI+ conversion
-            return ExtractWithGdi(exePath, outputPath, asPng: true);
+            // 2. Fallback to GDI+ conversion (Quality Mode)
+            return ExtractWithGdi(exePath, outputPath, asPng: true, prioritizeSpeed: false);
         });
     }
 
     /// <summary>
     /// Extract high-quality icon as ICO.
+    /// Prioritizes Speed/Quality Balance: PrivateExtractIconsW (256) -> SHGetFileInfo (Cache)
+    /// Skips TryExtractResource (LoadLibrary) to avoid parsing heavy EXEs for just a shortcut icon.
     /// </summary>
     public static async Task<bool> ExtractBestIconAsync(string exePath, string outputPath)
     {
         return await Task.Run(() =>
         {
-            // 1. Try raw resource (preserves original format wrapped in ICO)
-            if (TryExtractResource(exePath, outputPath, asPng: false)) return true;
-            // 2. Fallback to GDI+ conversion (PNG-compressed ICO for better quality)
-            return ExtractWithGdi(exePath, outputPath, asPng: false);
+            // 1. Try GDI with Quality priority (Try 256x256 first)
+            // This fixes the "icon too small" issue while still being faster than TryExtractResource
+            if (ExtractWithGdi(exePath, outputPath, asPng: false, prioritizeSpeed: false)) return true;
+            
+            // 2. Fallback to raw resource (only if GDI failed completely)
+            return TryExtractResource(exePath, outputPath, asPng: false);
         });
     }
 
     private static bool TryExtractResource(string exePath, string outputPath, bool asPng)
     {
+        // Optimization: Skip manual resource parsing for large files (> 100MB).
+        // LoadLibraryEx maps the file into memory, which is extremely slow for large EXEs.
+        try
+        {
+            var fileInfo = new FileInfo(exePath);
+            if (fileInfo.Length > 100 * 1024 * 1024) return false;
+        }
+        catch { return false; }
+
         IntPtr hModule = IntPtr.Zero;
         try
         {
@@ -119,7 +151,6 @@ public static class IconHelper
             var pIconData = LockResource(LoadResource(hModule, hIconInfo));
             if (pIconData == IntPtr.Zero || iconSize == 0) return false;
 
-            // Check for PNG signature
             byte[] header = new byte[8];
             Marshal.Copy(pIconData, header, 0, 8);
             bool isPngResource = header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47;
@@ -129,27 +160,20 @@ public static class IconHelper
 
             if (asPng)
             {
-                // Requesting PNG
                 if (isPngResource)
                 {
                     File.WriteAllBytes(outputPath, data);
                     return true;
                 }
-                // If it's BMP, we can't save as PNG directly from raw data easily without parsing BMP header
-                // So return false to let GDI fallback handle BMP->PNG conversion
                 return false;
             }
             else
             {
-                // Requesting ICO
-                // Whether it's PNG or BMP, we can wrap it in an ICO container
                 using var fs = new FileStream(outputPath, FileMode.Create);
                 using var writer = new BinaryWriter(fs);
-
-                writer.Write((ushort)0); // Reserved
-                writer.Write((ushort)1); // Type (1=Icon)
-                writer.Write((ushort)1); // Count (1 image)
-
+                writer.Write((ushort)0);
+                writer.Write((ushort)1);
+                writer.Write((ushort)1);
                 writer.Write(bestEntry.bWidth);
                 writer.Write(bestEntry.bHeight);
                 writer.Write(bestEntry.bColorCount);
@@ -157,8 +181,7 @@ public static class IconHelper
                 writer.Write(bestEntry.wPlanes);
                 writer.Write(bestEntry.wBitCount);
                 writer.Write(iconSize);
-                writer.Write((uint)22); // Offset (6 header + 16 directory)
-
+                writer.Write((uint)22);
                 writer.Write(data);
                 return true;
             }
@@ -167,33 +190,64 @@ public static class IconHelper
         finally { if (hModule != IntPtr.Zero) FreeLibrary(hModule); }
     }
 
-    private static bool ExtractWithGdi(string exePath, string outputPath, bool asPng)
+    private static bool ExtractWithGdi(string exePath, string outputPath, bool asPng, bool prioritizeSpeed)
     {
-        // Optimization: Removed the loop that scanned the file 5 times.
-        // We request 256x256 once. Windows API typically finds the closest match (scaling if needed).
-        // If the large icon extraction fails entirely, we fallback once to 48x48.
-        
         int size = 256;
         var phicon = new IntPtr[1];
         int count = 0;
+        IntPtr hIcon = IntPtr.Zero;
+        bool createdHandle = false;
 
         try 
         {
-            // Attempt 1: Jumbo Icon
-            count = PrivateExtractIconsW(exePath, 0, size, size, phicon, null, 1, 0);
-            
-            // Attempt 2: Standard Icon (if Jumbo failed)
-            if (count <= 0 || phicon[0] == IntPtr.Zero)
+            if (prioritizeSpeed)
             {
-                size = 48;
-                count = PrivateExtractIconsW(exePath, 0, size, size, phicon, null, 1, 0);
+                // Path A: FASTEST (Shell Cache)
+                var shinfo = new SHFILEINFO();
+                if (SHGetFileInfo(exePath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON) != IntPtr.Zero)
+                {
+                    hIcon = shinfo.hIcon;
+                    createdHandle = true;
+                    size = 48;
+                }
+                if (hIcon == IntPtr.Zero)
+                {
+                    count = PrivateExtractIconsW(exePath, 0, 256, 256, phicon, null, 1, 0);
+                    if (count > 0 && phicon[0] != IntPtr.Zero)
+                    {
+                        hIcon = phicon[0];
+                        createdHandle = true;
+                        size = 256;
+                    }
+                }
+            }
+            else
+            {
+                // Path B: QUALITY (PrivateExtractIconsW 256px)
+                count = PrivateExtractIconsW(exePath, 0, 256, 256, phicon, null, 1, 0);
+                if (count > 0 && phicon[0] != IntPtr.Zero)
+                {
+                    hIcon = phicon[0];
+                    createdHandle = true;
+                    size = 256;
+                }
+                if (hIcon == IntPtr.Zero)
+                {
+                    var shinfo = new SHFILEINFO();
+                    if (SHGetFileInfo(exePath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON) != IntPtr.Zero)
+                    {
+                        hIcon = shinfo.hIcon;
+                        createdHandle = true;
+                        size = 48;
+                    }
+                }
             }
 
-            if (count > 0 && phicon[0] != IntPtr.Zero)
+            if (hIcon != IntPtr.Zero)
             {
                 try
                 {
-                    using var icon = Icon.FromHandle(phicon[0]);
+                    using var icon = Icon.FromHandle(hIcon);
                     using var bitmap = icon.ToBitmap();
 
                     if (asPng)
@@ -202,45 +256,36 @@ public static class IconHelper
                     }
                     else
                     {
-                        // Save as PNG-compressed ICO to preserve quality and transparency
                         using var fs = new FileStream(outputPath, FileMode.Create);
                         using var writer = new BinaryWriter(fs);
                         using var ms = new MemoryStream();
-
                         bitmap.Save(ms, ImageFormat.Png);
                         byte[] pngData = ms.ToArray();
 
                         writer.Write((ushort)0);
                         writer.Write((ushort)1);
                         writer.Write((ushort)1);
-
                         byte w = (byte)(size >= 256 ? 0 : size);
                         byte h = (byte)(size >= 256 ? 0 : size);
-
                         writer.Write(w);
                         writer.Write(h);
-                        writer.Write((byte)0); // Color count
-                        writer.Write((byte)0); // Reserved
-                        writer.Write((ushort)1); // Planes
-                        writer.Write((ushort)32); // Bit count
+                        writer.Write((byte)0);
+                        writer.Write((byte)0);
+                        writer.Write((ushort)1);
+                        writer.Write((ushort)32);
                         writer.Write((uint)pngData.Length);
-                        writer.Write((uint)22); // Offset
-
+                        writer.Write((uint)22);
                         writer.Write(pngData);
                     }
                     return true;
                 }
                 finally
                 {
-                    DestroyIcon(phicon[0]);
+                    if (createdHandle) DestroyIcon(hIcon);
                 }
             }
         }
-        catch 
-        {
-            // Fallthrough to return false
-        }
-        
+        catch { }
         return false;
     }
 }
