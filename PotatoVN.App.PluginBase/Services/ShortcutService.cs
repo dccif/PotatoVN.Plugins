@@ -26,73 +26,99 @@ public static class ShortcutService
         string Uuid               // {uuid}
     );
 
-    private static async Task<GamePaths?> PrepareAssetsAsync(Galgame game, string? tempSunshineDir = null)
+    private static async Task<GamePaths?> GetGamePathsAsync(Galgame game, string? tempSunshineDir = null)
     {
         var uuid = game.Uuid;
         var name = game.Name.Value;
-
-        var exePath = game.ExePath;
-        var localPath = game.LocalPath;
-
         if (string.IsNullOrEmpty(name)) return null;
 
-        // 1. Basic Paths
         var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-
         var originalSafeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
         var safeBaseName = $"PotatoVN_{uuid}";
 
         var shortcutPath = Path.Combine(desktopPath, $"{originalSafeName}.url");
         var vbsPath = Path.Combine(desktopPath, $"{safeBaseName}.vbs");
 
-        // Resolve Game Exe Path
+        // Prepare .ico Icon Path
+        var localImagesFolder = await FileHelper.GetImageFolderPathAsync();
+        if (string.IsNullOrEmpty(localImagesFolder))
+        {
+            localImagesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PotatoVN", "ShortcutIcons");
+        }
+        var localIconPath = Path.Combine(localImagesFolder, $"{originalSafeName}.ico");
+
+        // Prepare .png Icon Path
+        string sunshineIconPath = string.Empty;
+        if (!string.IsNullOrEmpty(tempSunshineDir))
+        {
+            sunshineIconPath = Path.Combine(tempSunshineDir, $"{uuid}.png");
+        }
+
+        return new GamePaths(shortcutPath, vbsPath, localIconPath, sunshineIconPath, $"potato-vn://start/{uuid}", uuid.ToString());
+    }
+
+    private static async Task EnsureAssetsAsync(Galgame game, GamePaths paths, bool needIco, bool needPng)
+    {
+        // 1. Create directories if needed
+        if (needIco)
+        {
+            var localImagesFolder = Path.GetDirectoryName(paths.LocalIconPath);
+            if (!string.IsNullOrEmpty(localImagesFolder) && !Directory.Exists(localImagesFolder))
+            {
+                Directory.CreateDirectory(localImagesFolder);
+            }
+        }
+
+        if (needPng && !string.IsNullOrEmpty(paths.SunshineIconPath))
+        {
+            var sunshineDir = Path.GetDirectoryName(paths.SunshineIconPath);
+            if (!string.IsNullOrEmpty(sunshineDir) && !Directory.Exists(sunshineDir))
+            {
+                Directory.CreateDirectory(sunshineDir);
+            }
+        }
+
+        // 2. Resolve EXE path
+        var exePath = game.ExePath;
+        var localPath = game.LocalPath;
         var gameExePath = exePath;
         if (!string.IsNullOrEmpty(gameExePath) && !Path.IsPathRooted(gameExePath) && !string.IsNullOrEmpty(localPath))
         {
             gameExePath = Path.Combine(localPath, gameExePath);
         }
 
-        // 2. Prepare .ico Icon (For Desktop Shortcut)
-        var localImagesFolder = await FileHelper.GetImageFolderPathAsync();
-        if (string.IsNullOrEmpty(localImagesFolder))
+        if (string.IsNullOrEmpty(gameExePath) || !File.Exists(gameExePath)) return;
+
+        // 3. Perform extractions
+        var tasks = new List<Task>();
+
+        // ICO is only needed for desktop shortcuts
+        if (needIco && !File.Exists(paths.LocalIconPath))
         {
-            localImagesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PotatoVN", "ShortcutIcons");
-            Directory.CreateDirectory(localImagesFolder);
+            tasks.Add(IconHelper.ExtractBestIconAsync(gameExePath, paths.LocalIconPath));
         }
 
-        var localIconPath = Path.Combine(localImagesFolder, $"{originalSafeName}.ico");
-
-        if (!File.Exists(localIconPath) && !string.IsNullOrEmpty(gameExePath) && File.Exists(gameExePath))
+        // PNG is only needed for Sunshine
+        if (needPng && !string.IsNullOrEmpty(paths.SunshineIconPath) && !File.Exists(paths.SunshineIconPath))
         {
-            await IconHelper.ExtractBestIconAsync(gameExePath, localIconPath);
+            tasks.Add(IconHelper.SaveBestIconAsPngAsync(gameExePath, paths.SunshineIconPath));
         }
 
-        // 3. Prepare .png Icon (For Sunshine)
-        string sunshineIconPath = string.Empty;
-        if (!string.IsNullOrEmpty(tempSunshineDir))
+        if (tasks.Count > 0)
         {
-            if (!Directory.Exists(tempSunshineDir)) Directory.CreateDirectory(tempSunshineDir);
-
-            sunshineIconPath = Path.Combine(tempSunshineDir, $"{uuid}.png");
-
-            if (!File.Exists(sunshineIconPath) && !string.IsNullOrEmpty(gameExePath) && File.Exists(gameExePath))
-            {
-                await IconHelper.SaveBestIconAsPngAsync(gameExePath, sunshineIconPath);
-            }
+            await Task.WhenAll(tasks);
         }
-
-        return new GamePaths(shortcutPath, vbsPath, localIconPath, sunshineIconPath, $"potato-vn://start/{uuid}", uuid.ToString());
     }
 
     public static async Task CreateDesktopShortcut(Galgame game, IPotatoVnApi api)
     {
         try
         {
-            // 1. 准备路径资源
-            var paths = await PrepareAssetsAsync(game, tempSunshineDir: null);
+            // 1. 快速获取路径 (无IO/提取)
+            var paths = await GetGamePathsAsync(game, tempSunshineDir: null);
             if (paths == null) return;
 
-            // 2. 检查是否已存在且指向正确的 URI
+            // 2. 检查是否已存在且指向正确的 URI (快速检查，避免重复提取图标)
             if (File.Exists(paths.ShortcutPath))
             {
                 try
@@ -107,7 +133,10 @@ public static class ShortcutService
                 catch { /* 忽略读取错误，继续创建流程 */ }
             }
 
-            // 3. 确定图标路径
+            // 3. 确保资源存在 (仅提取 ICO)
+            await EnsureAssetsAsync(game, paths, needIco: true, needPng: false);
+
+            // 4. 确定图标路径
             string iconPath = paths.LocalIconPath;
             if (!File.Exists(iconPath))
             {
@@ -115,10 +144,8 @@ public static class ShortcutService
                 if (!string.IsNullOrEmpty(appExePath)) iconPath = appExePath;
             }
 
-            // 3. 构建内容
-            // 顺序很重要：Steam 风格通常把 [InternetShortcut] 放在核心位置
+            // 5. 构建内容
             var urlContent = new StringBuilder();
-
             urlContent.AppendLine("[InternetShortcut]");
             urlContent.AppendLine("IDList=");
             urlContent.AppendLine($"URL={paths.UuidUri}");
@@ -129,19 +156,12 @@ public static class ShortcutService
                 urlContent.AppendLine($"IconFile={iconPath}");
             }
 
-            // Steam 专用的 Property Store 标记 (防止图标变白纸的关键)
             urlContent.AppendLine("");
             urlContent.AppendLine("[{000214A0-0000-0000-C000-000000000046}]");
             urlContent.AppendLine("Prop3=19,0");
 
-            // 4. 关键修正：删除旧文件
             if (File.Exists(paths.ShortcutPath)) File.Delete(paths.ShortcutPath);
 
-            // 5. 核心修改：使用 Encoding.Unicode (即 UTF-16 LE)
-            // Windows 内部全是 UTF-16。
-            // 使用这种编码写入，Windows 能直接识别 "魔法少女" 这样的路径，
-            // 而不需要 [InternetShortcut.W] 这种复杂的 UTF-7 转码块。
-            // 这也避免了 GBK 系统把 UTF-8 BOM 读成 "锘縖" 的问题。
             await File.WriteAllTextAsync(paths.ShortcutPath, urlContent.ToString(), Encoding.Unicode);
             api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("ShortcutCreated") ?? "Desktop shortcut created successfully");
         }
@@ -157,7 +177,12 @@ public static class ShortcutService
         string? tempDir = null;
         try
         {
-            // 1. Try to fetch current apps list (API first, then File)
+            // 1. Prepare Paths (Fast)
+            tempDir = Path.Combine(Path.GetTempPath(), $"PotatoVN_Sunshine_{Guid.NewGuid()}");
+            var paths = await GetGamePathsAsync(game, tempSunshineDir: tempDir);
+            if (paths == null) return;
+
+            // 2. Try to fetch current apps list (API first, then File)
             List<SunshineApp>? currentApps = null;
             bool isApiMode = false;
             const string sunshineConfigPath = @"C:\Program Files\Sunshine\config\apps.json";
@@ -169,7 +194,6 @@ public static class ShortcutService
             }
             catch
             {
-                // API failed, try reading config file
                 if (File.Exists(sunshineConfigPath))
                 {
                     try
@@ -182,34 +206,27 @@ public static class ShortcutService
                 }
             }
 
-            // 2. If no apps list found (Sunshine not installed or configured)
             if (currentApps == null)
             {
                 api.Info(InfoBarSeverity.Error, msg: Plugin.GetLocalized("SunshineNotFound") ?? "Sunshine configuration file not found. Please ensure Sunshine is installed.");
                 return;
             }
 
-            // 3. Check if app with this UUID already exists
-            // Command pattern: cmd /c "start potato-vn://start/{uuid}"
+            // 3. Check for duplicates
             var uuidStr = game.Uuid.ToString();
             bool alreadyExists = currentApps.Any(app => !string.IsNullOrEmpty(app.Cmd) && app.Cmd.Contains(uuidStr));
 
             if (alreadyExists)
             {
-                // Already added: Skip image extraction and upload
                 api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineAlreadyExists") ?? "Application already exists in Sunshine.");
                 return;
             }
 
-            // 4. Create Temp Directory for Sunshine Assets
-            tempDir = Path.Combine(Path.GetTempPath(), $"PotatoVN_Sunshine_{Guid.NewGuid()}");
+            // 4. Create Temp Directory & Generate Assets (仅提取 PNG)
             Directory.CreateDirectory(tempDir);
+            await EnsureAssetsAsync(game, paths, needIco: false, needPng: true);
 
-            // 5. Prepare Assets (Extract Icon, etc.)
-            var paths = await PrepareAssetsAsync(game, tempSunshineDir: tempDir);
-            if (paths == null) return;
-
-            // 6. Execute Export
+            // 5. Execute Export
             if (isApiMode)
             {
                 await ExportToSunshineRuntimeAsync(game, paths, currentApps, api);
@@ -226,7 +243,6 @@ public static class ShortcutService
         }
         finally
         {
-            // 7. Cleanup Temp Directory
             if (!string.IsNullOrEmpty(tempDir) && Directory.Exists(tempDir))
             {
                 try { Directory.Delete(tempDir, true); } catch { /* Ignore cleanup errors */ }

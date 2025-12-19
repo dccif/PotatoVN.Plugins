@@ -169,11 +169,27 @@ public static class IconHelper
 
     private static bool ExtractWithGdi(string exePath, string outputPath, bool asPng)
     {
-        int[] sizes = { 256, 128, 64, 48, 32 };
-        foreach (var size in sizes)
+        // Optimization: Removed the loop that scanned the file 5 times.
+        // We request 256x256 once. Windows API typically finds the closest match (scaling if needed).
+        // If the large icon extraction fails entirely, we fallback once to 48x48.
+        
+        int size = 256;
+        var phicon = new IntPtr[1];
+        int count = 0;
+
+        try 
         {
-            var phicon = new IntPtr[1];
-            if (PrivateExtractIconsW(exePath, 0, size, size, phicon, null, 1, 0) > 0 && phicon[0] != IntPtr.Zero)
+            // Attempt 1: Jumbo Icon
+            count = PrivateExtractIconsW(exePath, 0, size, size, phicon, null, 1, 0);
+            
+            // Attempt 2: Standard Icon (if Jumbo failed)
+            if (count <= 0 || phicon[0] == IntPtr.Zero)
+            {
+                size = 48;
+                count = PrivateExtractIconsW(exePath, 0, size, size, phicon, null, 1, 0);
+            }
+
+            if (count > 0 && phicon[0] != IntPtr.Zero)
             {
                 try
                 {
@@ -214,16 +230,17 @@ public static class IconHelper
                     }
                     return true;
                 }
-                catch
-                {
-                    continue;
-                }
                 finally
                 {
                     DestroyIcon(phicon[0]);
                 }
             }
         }
+        catch 
+        {
+            // Fallthrough to return false
+        }
+        
         return false;
     }
 }
