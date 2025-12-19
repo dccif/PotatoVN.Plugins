@@ -1,4 +1,4 @@
 [submodule "PotatoVN"]
 	path = PotatoVN
-	url = https://github.com/dccif/PotatoVN.git
-	branch = feat
+	url = https://github.com/GoldenPotato137/PotatoVN.git
+	branch = plugin
