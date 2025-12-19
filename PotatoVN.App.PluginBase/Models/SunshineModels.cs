@@ -33,12 +33,21 @@ public class SunshineApp
     [JsonProperty("cmd", NullValueHandling = NullValueHandling.Ignore)]
     public string Cmd { get; set; } = string.Empty;
 
+    [JsonProperty("index", NullValueHandling = NullValueHandling.Ignore)]
+    public int? Index { get; set; }
+
     // --- 2. 列表类型的字段 (Lists) ---
-    // 这些字段在 C++ 可能会被存为 null, "", "null", 或者正常的 []
+    // These fields are required by Sunshine API (even if empty) to avoid "No such node" errors.
+    // Removed NullValueHandling.Ignore and added backing fields to ensure they default to [] if null.
 
     // Detached (分离进程列表)
-    [JsonProperty("detached", NullValueHandling = NullValueHandling.Ignore)]
-    public JToken? DetachedToken { get; set; }
+    [JsonProperty("detached")]
+    public JToken? DetachedToken 
+    { 
+        get => _detachedToken ?? new JArray();
+        set => _detachedToken = value;
+    }
+    private JToken? _detachedToken;
 
     [JsonIgnore]
     public List<string> Detached
@@ -48,8 +57,13 @@ public class SunshineApp
     }
 
     // PrepCmd (准备命令列表)
-    [JsonProperty("prep-cmd", NullValueHandling = NullValueHandling.Ignore)]
-    public JToken? PrepCmdToken { get; set; }
+    [JsonProperty("prep-cmd")]
+    public JToken? PrepCmdToken 
+    { 
+        get => _prepCmdToken ?? new JArray();
+        set => _prepCmdToken = value;
+    }
+    private JToken? _prepCmdToken;
 
     [JsonIgnore]
     public List<SunshinePrepCmd> PrepCmd
@@ -59,8 +73,13 @@ public class SunshineApp
     }
 
     // MenuCmd (菜单命令列表)
-    [JsonProperty("menu-cmd", NullValueHandling = NullValueHandling.Ignore)]
-    public JToken? MenuCmdToken { get; set; }
+    [JsonProperty("menu-cmd")]
+    public JToken? MenuCmdToken 
+    { 
+        get => _menuCmdToken ?? new JArray();
+        set => _menuCmdToken = value;
+    }
+    private JToken? _menuCmdToken;
 
     [JsonIgnore]
     public List<SunshineMenuCmd> MenuCmd

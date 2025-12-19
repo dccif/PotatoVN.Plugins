@@ -186,6 +186,7 @@ public static class ShortcutService
             var targetApp = currentApps.FirstOrDefault(a => a.Name == targetAppName);
             if (targetApp != null)
             {
+                targetApp.Index = currentApps.IndexOf(targetApp);
                 targetApp.Cmd = cmdString;
                 targetApp.ImagePath = imageKey;
                 targetApp.AutoDetach = "true";
@@ -200,13 +201,12 @@ public static class ShortcutService
                     ImagePath = imageKey,
                     AutoDetach = "true",
                     WaitAll = "true",
-                    ExitTimeout = "5"
+                    ExitTimeout = "5",
+                    Index = -1
                 };
-                currentApps.Add(targetApp);
             }
 
-            // 3. Save
-            await SaveSunshineAppsAsync(currentApps, targetApp);
+            await SaveSunshineAppsAsync(new List<SunshineApp>(), targetApp);
             api.Info(InfoBarSeverity.Success, msg: Plugin.GetLocalized("SunshineExported") ?? "Exported to Sunshine successfully");
         }
         catch (Exception ex)
@@ -272,6 +272,8 @@ public static class ShortcutService
     private static async Task<HttpClient> GetSunshineHttpClientAsync()
     {
         int port = 47990;
+        string username = "admin";
+        string password = "admin";
         const string configPath = @"C:\Program Files\Sunshine\config\sunshine.conf";
         try
         {
@@ -297,6 +299,11 @@ public static class ShortcutService
 
         var client = new HttpClient(handler);
         client.BaseAddress = new Uri($"https://localhost:{port}/");
+
+        // Add Basic Auth header (matching PS1 script logic)
+        var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authValue);
+
         return client;
     }
 
