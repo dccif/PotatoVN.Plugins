@@ -26,7 +26,7 @@ public static class SaveDetector
         {
             Game = game
         };
-        
+
         var pipeline = new List<IDetectionStep> { new DiscoveryStep(), new AnalysisStep() };
 
         try
@@ -46,7 +46,7 @@ public static class SaveDetector
         return context.FinalPath;
     }
 
-    internal static bool IsAdministrator() 
+    internal static bool IsAdministrator()
     {
         using var identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);

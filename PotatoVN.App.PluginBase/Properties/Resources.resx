@@ -109,4 +109,34 @@
   <data name="Ui_AdminRequiredWarning" xml:space="preserve">
     <value>Current process is not running as Administrator. Admin Mode will not work correctly.</value>
   </data>
+  <data name="Ui_AdminRequiredDescription" xml:space="preserve">
+    <value>Restart the application as administrator to enable ETW detection.</value>
+  </data>
+  <data name="GameSaveDetectorTask_Title" xml:space="preserve">
+    <value>Save Detection</value>
+  </data>
+  <data name="GameSaveDetector_Initializing" xml:space="preserve">
+    <value>Initializing save detection...</value>
+  </data>
+  <data name="GameSaveDetector_Monitoring" xml:space="preserve">
+    <value>Monitoring file changes...</value>
+  </data>
+  <data name="GameSaveDetector_Success" xml:space="preserve">
+    <value>Detected: {0}</value>
+  </data>
+  <data name="GameSaveDetector_NotFound" xml:space="preserve">
+    <value>No save detected</value>
+  </data>
+  <data name="GameSaveDetector_Failed" xml:space="preserve">
+    <value>Save detection failed</value>
+  </data>
+  <data name="GameSaveDetector_ProcessNotFound" xml:space="preserve">
+    <value>Game process not found</value>
+  </data>
+  <data name="GameSaveDetector_Cancelled" xml:space="preserve">
+    <value>Task Cancelled</value>
+  </data>
+  <data name="GameSaveDetector_Timeout" xml:space="preserve">
+    <value>Detection timeout (max time reached)</value>
+  </data>
 </root>

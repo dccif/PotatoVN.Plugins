@@ -101,12 +101,42 @@
     <value>使用管理员模式 (ETW)</value>
   </data>
   <data name="Ui_UseAdminModeDescription" xml:space="preserve">
-    <value>使用 Windows 事件跟踪进行更准确的实时监测。需要管理员权限运行软件。</value>
+    <value>一般情况下监听器的模式已经足够了，只有你确认知道要干什么才开启。使用 Windows 事件跟踪进行更准确的实时监测，需要管理员权限运行软件。</value>
   </data>
   <data name="Ui_RestartAsAdmin" xml:space="preserve">
     <value>以管理员身份重启</value>
   </data>
   <data name="Ui_AdminRequiredWarning" xml:space="preserve">
     <value>当前程序未以管理员身份运行，管理员模式将无法正常工作。</value>
+  </data>
+  <data name="Ui_AdminRequiredDescription" xml:space="preserve">
+    <value>请以管理员身份重启程序以启用内核级探测。</value>
+  </data>
+  <data name="GameSaveDetectorTask_Title" xml:space="preserve">
+    <value>存档探测</value>
+  </data>
+  <data name="GameSaveDetector_Initializing" xml:space="preserve">
+    <value>正在初始化存档检测...</value>
+  </data>
+  <data name="GameSaveDetector_Monitoring" xml:space="preserve">
+    <value>正在监控文件变动...</value>
+  </data>
+  <data name="GameSaveDetector_Success" xml:space="preserve">
+    <value>成功检测到存档：{0}</value>
+  </data>
+  <data name="GameSaveDetector_NotFound" xml:space="preserve">
+    <value>未检测到存档变动</value>
+  </data>
+  <data name="GameSaveDetector_Failed" xml:space="preserve">
+    <value>存档探测失败</value>
+  </data>
+  <data name="GameSaveDetector_ProcessNotFound" xml:space="preserve">
+    <value>未找到游戏进程</value>
+  </data>
+  <data name="GameSaveDetector_Cancelled" xml:space="preserve">
+    <value>任务已取消</value>
+  </data>
+  <data name="GameSaveDetector_Timeout" xml:space="preserve">
+    <value>探测超时（已达到最大探测时间）</value>
   </data>
 </root>

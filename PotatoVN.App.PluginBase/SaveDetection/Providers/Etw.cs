@@ -9,44 +9,79 @@ namespace PotatoVN.App.PluginBase.SaveDetection.Providers;
 internal class EtwProvider : ISaveCandidateProvider
 {
     private TraceEventSession? _session;
+    private const string SESSION_NAME = "PotatoVN-SaveDetector-Session";
 
     public async Task StartAsync(DetectionContext context, Func<string, bool> pathFilter)
     {
-        _ = Task.Run(() => {
-            try {
-                _session = new TraceEventSession("NT Kernel Logger");
-                _session.Stop(true);
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                // Use a unique name for the session if possible, though Kernel sessions are often restricted
+                // In many environments, "NT Kernel Logger" is the only one allowed for certain kernel events.
+                _session = new TraceEventSession(KernelTraceEventParser.KernelSessionName);
+                _session.Stop(true); // Clean up any previous abandoned session
+
                 _session.EnableKernelProvider(KernelTraceEventParser.Keywords.FileIO | KernelTraceEventParser.Keywords.FileIOInit);
 
-                // Handler for FileIOCreate
-                Action<Microsoft.Diagnostics.Tracing.Parsers.Kernel.FileIOCreateTraceData> createHandler = data => {
-                    if (data.ProcessID == context.TargetProcess.Id)
+                // Handler for FileIOCreate (Open/Create)
+                _session.Source.Kernel.FileIOCreate += data =>
+                {
+                    if (data.ProcessID == context.TargetProcess.Id && !string.IsNullOrEmpty(data.FileName))
                     {
-                        if (!string.IsNullOrEmpty(data.FileName) && pathFilter(data.FileName)) 
+                        if (pathFilter(data.FileName))
                         {
-                            context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now));
+                            context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now, IoOperation.Create));
+                            context.Log($"[ETW] Candidate via Create: {data.FileName}", LogLevel.Debug);
                         }
                     }
                 };
 
                 // Handler for FileIOWrite
-                Action<Microsoft.Diagnostics.Tracing.Parsers.Kernel.FileIOReadWriteTraceData> writeHandler = data => {
-                    if (data.ProcessID == context.TargetProcess.Id)
+                _session.Source.Kernel.FileIOWrite += data =>
+                {
+                    if (data.ProcessID == context.TargetProcess.Id && !string.IsNullOrEmpty(data.FileName))
                     {
-                        if (!string.IsNullOrEmpty(data.FileName) && pathFilter(data.FileName)) 
+                        if (pathFilter(data.FileName))
                         {
-                            context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now));
+                            context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now, IoOperation.Write));
+                            context.Log($"[ETW] Candidate via Write: {data.FileName}", LogLevel.Debug);
                         }
                     }
                 };
 
-                _session.Source.Kernel.FileIOWrite += writeHandler;
-                _session.Source.Kernel.FileIOCreate += createHandler;
+                // Handler for FileIORename
+                _session.Source.Kernel.FileIORename += data =>
+                {
+                    if (data.ProcessID == context.TargetProcess.Id && !string.IsNullOrEmpty(data.FileName))
+                    {
+                        if (pathFilter(data.FileName))
+                        {
+                            context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now, IoOperation.Rename));
+                            context.Log($"[ETW] Candidate via Rename: {data.FileName}", LogLevel.Debug);
+                        }
+                    }
+                };
+
+                context.Log("[ETW] Session started and monitoring File IO.", LogLevel.Debug);
                 _session.Source.Process();
-            } catch (Exception ex) { context.Log($"ETW Critical Error: {ex.Message}", LogLevel.Error); }
+            }
+            catch (Exception ex)
+            {
+                context.Log($"ETW Critical Error: {ex.Message}", LogLevel.Error);
+            }
         }, context.Token);
         await Task.CompletedTask;
     }
 
-    public void Stop() => _session?.Dispose();
+    public void Stop()
+    {
+        try
+        {
+            _session?.Stop();
+            _session?.Dispose();
+            _session = null;
+        }
+        catch { }
+    }
 }

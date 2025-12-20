@@ -20,6 +20,9 @@ internal class VotingAnalyzer : ISavePathAnalyzer
     {
         if (string.IsNullOrWhiteSpace(path) || !path.Contains(':')) return false;
 
+        var fileName = Path.GetFileName(path);
+        var ext = Path.GetExtension(path);
+
         // 1. Blacklists
         if (options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase)))
         {
@@ -27,18 +30,29 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             return false;
         }
 
-        var ext = Path.GetExtension(path);
         if (options.ExtensionBlacklist.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)))
         {
             Logger?.Invoke($"[Voting] Path rejected by extension blacklist: {path}", LogLevel.Debug);
             return false;
         }
 
-        // 2. Game Directory (Always allow if inside game folder)
+        // 2. Game Directory Heuristics
         if (game?.LocalPath != null && path.StartsWith(game.LocalPath, StringComparison.OrdinalIgnoreCase))
         {
-            Logger?.Invoke($"[Voting] Path accepted (Game Directory): {path}", LogLevel.Debug);
-            return true;
+            // Even in game directory, we need to be careful of assets
+            // Check if it's a known save extension or contains keywords
+            if (options.SaveExtensionWhitelist.Any(w => w.Equals(ext.TrimStart('.'), StringComparison.OrdinalIgnoreCase)) ||
+                options.SaveKeywordWhitelist.Any(w => fileName.Contains(w, StringComparison.OrdinalIgnoreCase)))
+            {
+                Logger?.Invoke($"[Voting] Path accepted (Game Directory + Feature Match): {path}", LogLevel.Debug);
+                return true;
+            }
+
+            // If it's a generic file in game directory but doesn't look like an asset, we might still want it
+            // but we give it a lower priority or a more careful check later.
+            // For now, let's keep it rejected if it doesn't match any feature to reduce noise.
+            Logger?.Invoke($"[Voting] Path in game directory but lacks save features, rejecting: {path}", LogLevel.Debug);
+            return false;
         }
 
         // 3. Whitelists
@@ -48,7 +62,6 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             return true;
         }
 
-        var fileName = Path.GetFileName(path);
         if (options.SaveKeywordWhitelist.Any(w => fileName.Contains(w, StringComparison.OrdinalIgnoreCase)))
         {
             Logger?.Invoke($"[Voting] Path accepted (Keyword Whitelist): {path}", LogLevel.Debug);
@@ -91,11 +104,31 @@ internal class VotingAnalyzer : ISavePathAnalyzer
                 directoryScores[normalizedDir] = scored;
             }
 
-            // 1. Base Score & Vote Count
-            scored.Score += 2;
+            // 1. Base Score based on Operation
+            double baseScore = candidate.Op switch
+            {
+                IoOperation.Write => 40,
+                IoOperation.Rename => 60,
+                IoOperation.Create => 2, // Low base for just opening
+                _ => 2
+            };
+
+            // Heuristic: If it's a Create in game directory without strong keywords, it's likely an asset read.
+            // We drastically reduce its weight.
+            if (candidate.Op == IoOperation.Create &&
+                game?.LocalPath != null && path.StartsWith(game.LocalPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var ext = Path.GetExtension(path).TrimStart('.');
+                bool isLikelySave = options.SaveExtensionWhitelist.Any(w => w.Equals(ext, StringComparison.OrdinalIgnoreCase)) ||
+                                   options.SaveKeywordWhitelist.Any(w => Path.GetFileName(path).Contains(w, StringComparison.OrdinalIgnoreCase));
+
+                if (!isLikelySave) baseScore = 0.1; // Almost ignore
+            }
+
+            scored.Score += baseScore;
             scored.VoteCount++;
 
-            // 2. File Quality Score
+            // 2. File Quality & Size Score
             scored.Score += CalculateSaveFileScore(path, options) * 0.1;
 
             // 3. Provider Bonus
@@ -125,7 +158,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
             // 5. Path Structure Score
             kvp.Value.Score += GetPathStructureScore(dir, options);
-            
+
             Logger?.Invoke($"[Voting] Candidate: {dir} | Score: {kvp.Value.Score} | Votes: {kvp.Value.VoteCount}", LogLevel.Debug);
         }
 
@@ -133,7 +166,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             .Where(v => v.VoteCount >= options.MinVoteCountThreshold)
             .OrderByDescending(v => v.Score)
             .FirstOrDefault(v => v.Score >= options.ConfidenceScoreThreshold);
-            
+
         if (best != null)
         {
             Logger?.Invoke($"[Voting] Final Winner: {best.Path} (Score: {best.Score})", LogLevel.Debug);
@@ -179,7 +212,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
         // Take top 2 similarity pairs
         var topTwo = similarities.OrderByDescending(s => s.Sim).Take(2).ToList();
-        
+
         var dirCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in topTwo)
         {
@@ -208,11 +241,16 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         try
         {
             var fileInfo = new FileInfo(filePath);
+
+            // Hard limit: Save files are almost never > 100MB. 
+            // Most game assets (pac/arc) are huge.
+            if (fileInfo.Length > 100 * 1024 * 1024) return -500;
+
             var score = 0.0;
 
             // Size heuristics
             if (fileInfo.Length > 1024 && fileInfo.Length < 10 * 1024 * 1024) score += 30;
-            else if (fileInfo.Length > 100 && fileInfo.Length < 100 * 1024 * 1024) score += 20;
+            else if (fileInfo.Length > 100 && fileInfo.Length < 50 * 1024 * 1024) score += 20;
 
             // Time heuristics
             var timeDiff = DateTime.Now - fileInfo.LastWriteTime;

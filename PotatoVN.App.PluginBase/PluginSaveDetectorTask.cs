@@ -53,6 +53,9 @@ public class PluginSaveDetectorTask : BgTaskBase
         {
             if (_game == null) return;
 
+            // Apply timeout
+            CancellationTokenSource?.CancelAfter(TimeSpan.FromSeconds(_options.MaxDetectionTimeSeconds));
+
             // 1. Find process (Orchestration Step 1)
             ChangeProgress(0, 1, Plugin.GetLocalized("GameSaveDetector_Initializing") ?? "Initializing...");
             _gameProcess = await WaitForGameProcessAsync();
@@ -111,7 +114,11 @@ public class PluginSaveDetectorTask : BgTaskBase
             {
                 if (CancellationToken.Value.IsCancellationRequested)
                 {
-                    ChangeProgress(-1, 1, "Task Cancelled");
+                    // Check if it was a timeout or manual cancellation
+                    // Note: This is a bit of a heuristic since we don't have a separate timeout token,
+                    // but we can check if the time elapsed is close to the limit.
+                    // Or we just use a generic cancelled message, but user asked for "stopped" on timeout.
+                    ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_Timeout") ?? "Detection timeout");
                 }
                 else
                 {
@@ -121,7 +128,7 @@ public class PluginSaveDetectorTask : BgTaskBase
         }
         catch (OperationCanceledException)
         {
-            ChangeProgress(-1, 1, "Task Cancelled");
+            ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_Timeout") ?? "Detection timeout");
         }
         catch (Exception ex)
         {

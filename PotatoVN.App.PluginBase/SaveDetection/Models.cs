@@ -21,7 +21,7 @@ public class SaveDetectorOptions
     public float KeywordBonusWeight { get; init; } = 5.0f;
 
     // 路径黑名单（包含这些关键词的路径将被跳过）
-    public string[] PathBlacklist { get; init; } = { 
+    public string[] PathBlacklist { get; init; } = {
         "potatovn", ".potatovn", "potato vn", "potato-vn", "potato_vn",
         "windows", "system32", "syswow64", "drivers", "driverstore", "servicing",
         "Microsoft", "win", "winsxs", "temp", "tmp", "Temp", "Packages",
@@ -37,11 +37,17 @@ public class SaveDetectorOptions
         "microsoft office", "office", "adobe", "photoshop", "autodesk", "skype", "teams", "zoom", "slack", "spotify", "itunes",
         "kaspersky", "norton", "mcafee", "avast", "avg",
         "powershell", "cmd", "sysnative", "tasks", "startup", "start menu", "desktop", "wallpaper",
-        "scoop", "chocolatey", "winget", "TrafficMonitor", "ditto"
+        "scoop", "chocolatey", "winget", "TrafficMonitor", "ditto",
+        // 游戏资源目录黑名单
+        "\\pac\\", "\\movie\\", "\\bgm\\", "\\voice\\", "\\sound\\", "\\media\\", "\\plugin\\", "\\plugins\\"
     };
 
     // 文件后缀黑名单
-    public string[] ExtensionBlacklist { get; init; } = { ".exe", ".dll", ".lnk", ".ini", ".log", ".tmp", ".pdb", ".msi" };
+    public string[] ExtensionBlacklist { get; init; } = {
+        ".exe", ".dll", ".lnk", ".ini", ".log", ".tmp", ".pdb", ".msi",
+        // 游戏资源文件后缀
+        ".ypf", ".arc", ".pak", ".xp3", ".dat", ".bin", ".ogg", ".wav", ".mp4", ".wmv", ".bik"
+    };
 
     // 存档文件后缀白名单
     public string[] SaveExtensionWhitelist { get; init; } = {
@@ -72,19 +78,23 @@ public class SaveDetectorOptions
     };
 
     public bool AllowEtw { get; init; } = true;
-    
+
     // 等待游戏进程启动的时间（秒）
     public int ProcessWaitTimeSeconds { get; init; } = 10;
 
     // FileSystemWatcher 重试配置
     public int WatcherRetryCount { get; init; } = 3;
     public int WatcherRetryIntervalMs { get; init; } = 5000;
+
+    // 最大探测时间（秒），默认5分钟
+    public int MaxDetectionTimeSeconds { get; init; } = 300;
 }
 
-public enum ProviderSource { ETW, FileSystemWatcher, Polling } 
-public enum LogLevel { Debug, Info, Warning, Error } 
+public enum ProviderSource { ETW, FileSystemWatcher, Polling }
+public enum IoOperation { Create, Write, Rename, Unknown }
+public enum LogLevel { Debug, Info, Warning, Error }
 
-public record PathCandidate(string Path, ProviderSource Source, DateTime DetectedTime);
+public record PathCandidate(string Path, ProviderSource Source, DateTime DetectedTime, IoOperation Op = IoOperation.Unknown);
 
 internal class ScoredPath
 {
@@ -98,7 +108,7 @@ public interface ISaveDetectorLogger
     void Log(string message, LogLevel level);
 }
 
-internal class NullLogger : ISaveDetectorLogger { public void Log(string m, LogLevel l) { } } 
+internal class NullLogger : ISaveDetectorLogger { public void Log(string m, LogLevel l) { } }
 
 public class DetectionContext
 {
@@ -120,10 +130,10 @@ public class DetectionContext
     }
 
     [Conditional("DEBUG")]
-    public void Log(string msg, LogLevel level = LogLevel.Info) 
+    public void Log(string msg, LogLevel level = LogLevel.Info)
     {
-        #if DEBUG
+#if DEBUG
         _logger.Log(msg, level);
-        #endif
+#endif
     }
 }

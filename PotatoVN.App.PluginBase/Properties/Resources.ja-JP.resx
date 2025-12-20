@@ -109,4 +109,34 @@
   <data name="Ui_AdminRequiredWarning" xml:space="preserve">
     <value>現在のプロセスは管理者として実行されていません。管理者モードは正しく動作しません。</value>
   </data>
+  <data name="Ui_AdminRequiredDescription" xml:space="preserve">
+    <value>ETW検出を有効にするには、アプリケーションを管理者として再起動してください。</value>
+  </data>
+  <data name="GameSaveDetectorTask_Title" xml:space="preserve">
+    <value>セーブデータ検出</value>
+  </data>
+  <data name="GameSaveDetector_Initializing" xml:space="preserve">
+    <value>セーブデータ検出を初期化中...</value>
+  </data>
+  <data name="GameSaveDetector_Monitoring" xml:space="preserve">
+    <value>ファイルの変更を監視中...</value>
+  </data>
+  <data name="GameSaveDetector_Success" xml:space="preserve">
+    <value>セーブデータを検出しました：{0}</value>
+  </data>
+  <data name="GameSaveDetector_NotFound" xml:space="preserve">
+    <value>セーブデータの変更が検出されませんでした</value>
+  </data>
+  <data name="GameSaveDetector_Failed" xml:space="preserve">
+    <value>セーブデータ検出に失敗しました</value>
+  </data>
+  <data name="GameSaveDetector_ProcessNotFound" xml:space="preserve">
+    <value>ゲームプロセスが見つかりませんでした</value>
+  </data>
+  <data name="GameSaveDetector_Cancelled" xml:space="preserve">
+    <value>タスクがキャンセルされました</value>
+  </data>
+  <data name="GameSaveDetector_Timeout" xml:space="preserve">
+    <value>検出タイムアウト（最大時間に達しました）</value>
+  </data>
 </root>

@@ -186,7 +186,7 @@ internal class WatcherProvider : ISaveCandidateProvider
             {
                 if (Directory.Exists(path))
                 {
-                    context.Log($"[Watcher] [Retry {i+1}] Path appeared, starting watch: {path}", LogLevel.Debug);
+                    context.Log($"[Watcher] [Retry {i + 1}] Path appeared, starting watch: {path}", LogLevel.Debug);
                     CreateFileSystemWatcher(path, context, pathFilter);
                     successfullyAdded.Add(path);
                 }

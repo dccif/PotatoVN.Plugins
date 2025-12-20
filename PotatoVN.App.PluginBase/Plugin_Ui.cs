@@ -10,52 +10,51 @@ public partial class Plugin
 {
     public FrameworkElement CreateSettingUi()
     {
-        StdStackPanel panel = new();
+        StdStackPanel stdStackPanel = new();
+        StdStackPanel stdSetting = new();
 
-        ToggleSwitch adminToggle = new() { IsOn = _data.UseAdminMode };
-        
-        StackPanel adminContainer = new();
-        adminContainer.Children.Add(adminToggle);
+        ToggleSwitch adminToggle = new()
+        {
+            IsOn = _data.UseAdminMode,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        StdSetting adminModeSetting = new StdSetting(
+            GetLocalized("Ui_UseAdminMode") ?? "Use Admin Mode (ETW)",
+            GetLocalized("Ui_UseAdminModeDescription") ?? "In most cases, the watcher mode is sufficient. Only enable this if you know what you are doing. Uses Windows Event Tracing for more accurate detection.",
+            adminToggle);
+        stdSetting.Children.Add(adminModeSetting);
 
         if (!IsAdministrator())
         {
             Button restartBtn = new()
             {
                 Content = GetLocalized("Ui_RestartAsAdmin") ?? "Restart as Admin",
-                Margin = new Thickness(0, 10, 0, 0),
-                Visibility = _data.UseAdminMode ? Visibility.Visible : Visibility.Collapsed
+                VerticalAlignment = VerticalAlignment.Center
             };
             restartBtn.Click += (s, e) => RestartAsAdmin();
 
-            TextBlock warning = new()
-            {
-                Text = GetLocalized("Ui_AdminRequiredWarning") ?? "Administrator privileges required.",
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 185, 0)),
-                FontSize = 12,
-                Margin = new Thickness(0, 5, 0, 0),
-                Visibility = _data.UseAdminMode ? Visibility.Visible : Visibility.Collapsed
-            };
+            StdSetting restartSetting = new StdSetting(
+                GetLocalized("Ui_AdminRequiredWarning") ?? "Administrator privileges required.",
+                GetLocalized("Ui_AdminRequiredDescription") ?? "Restart the application as administrator to enable ETW detection.",
+                restartBtn);
+
+            restartSetting.Visibility = _data.UseAdminMode ? Visibility.Visible : Visibility.Collapsed;
+            stdSetting.Children.Add(restartSetting);
 
             adminToggle.Toggled += (s, e) =>
             {
                 _data.UseAdminMode = adminToggle.IsOn;
-                restartBtn.Visibility = adminToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
-                warning.Visibility = adminToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+                restartSetting.Visibility = adminToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
             };
-
-            adminContainer.Children.Add(warning);
-            adminContainer.Children.Add(restartBtn);
         }
         else
         {
             adminToggle.Toggled += (s, e) => _data.UseAdminMode = adminToggle.IsOn;
         }
 
-        panel.Children.Add(new StdSetting(
-            GetLocalized("Ui_UseAdminMode") ?? "Use Admin Mode (ETW)",
-            GetLocalized("Ui_UseAdminModeDescription") ?? "Uses Windows Event Tracing for more accurate real-time detection.",
-            adminContainer).WarpWithPanel());
+        stdStackPanel.Children.Add(stdSetting.WarpWithPanel());
 
-        return panel;
+        return stdStackPanel;
     }
 }
