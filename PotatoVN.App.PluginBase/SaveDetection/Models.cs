@@ -22,24 +22,52 @@ public class SaveDetectorOptions
 
     // 路径黑名单（包含这些关键词的路径将被跳过）
     public string[] PathBlacklist { get; init; } = {
+        // PotatoVN相关路径
         "potatovn", ".potatovn", "potato vn", "potato-vn", "potato_vn",
+
+        // Windows系统目录
         "windows", "system32", "syswow64", "drivers", "driverstore", "servicing",
         "Microsoft", "win", "winsxs", "temp", "tmp", "Temp", "Packages",
+
+        // 程序安装目录
         "program files", "program files (x86)", "programdata", "program files (arm)", "program files (arm64)",
+
+        // 游戏平台相关
         "steam", "steamapps", "epic games", "uplay", "ubisoft", "origin", "ea games", "gog",
         "battle.net", "blizzard", "riot games", "discord",
+
+        // 开发工具目录
         "visual studio", "msbuild", "nuget", "dotnet", "sdk", "code", "vscode", "android", "android sdk",
+
+        // 浏览器目录
         "google", "chrome", "mozilla", "firefox", "edge", "opera",
+
+        // 社交通信软件
         "xwechat_files","Tencent Files", "WeChat", "QQ", "WeChat Files", "deskgo", "WeChatWork", "Tencent",
+
+        // 硬件相关目录
         "nvidia", "amd", "intel", "cuda", "rocm",
+
+        // 临时和缓存目录
         "cache", "caches", "temporary", "logs", "log", "recycle bin", "$recycle.bin", "system volume information",
+
+        // 配置和系统文件目录
         "config", "configuration", "settings", "preferences", "registry", "repair", "backup", "system restore",
+
+        // 用户特定应用数据（非游戏相关）
         "microsoft office", "office", "adobe", "photoshop", "autodesk", "skype", "teams", "zoom", "slack", "spotify", "itunes",
+
+        // 防病毒和安全软件
         "kaspersky", "norton", "mcafee", "avast", "avg",
+
+        // 其他系统工具
         "powershell", "cmd", "sysnative", "tasks", "startup", "start menu", "desktop", "wallpaper",
+
+        // 其他软件
         "scoop", "chocolatey", "winget", "TrafficMonitor", "ditto",
-        // 游戏资源目录黑名单
-        "\\pac\\", "\\movie\\", "\\bgm\\", "\\voice\\", "\\sound\\", "\\media\\", "\\plugin\\", "\\plugins\\"
+
+        // 游戏资源相关目录
+        "pac", "movie", "bgm", "voice", "sound", "media", "plugin", "plugins"
     };
 
     // 文件后缀黑名单

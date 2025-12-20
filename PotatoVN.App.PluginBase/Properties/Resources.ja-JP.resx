@@ -101,7 +101,7 @@
     <value>管理者モードを使用 (ETW)</value>
   </data>
   <data name="Ui_UseAdminModeDescription" xml:space="preserve">
-    <value>より正確なリアルタイム検出のために Windows イベント トレーシングを使用します。管理者権限が必要です。</value>
+    <value>通常は監視モードで十分です。仕組みを理解している場合のみ有効にしてください。</value>
   </data>
   <data name="Ui_RestartAsAdmin" xml:space="preserve">
     <value>管理者として再起動</value>

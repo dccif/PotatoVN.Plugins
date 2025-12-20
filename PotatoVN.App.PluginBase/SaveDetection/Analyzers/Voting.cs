@@ -16,62 +16,61 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
     public Action<string, LogLevel>? Logger { get; set; }
 
-    public bool IsValidPath(string path, SaveDetectorOptions options, Galgame? game = null)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !path.Contains(':')) return false;
-
-        var fileName = Path.GetFileName(path);
-        var ext = Path.GetExtension(path);
-
-        // 1. Blacklists
-        if (options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase)))
+        public bool IsValidPath(string path, SaveDetectorOptions options, Galgame? game = null)
         {
-            Logger?.Invoke($"[Voting] Path rejected by blacklist: {path}", LogLevel.Debug);
-            return false;
-        }
-
-        if (options.ExtensionBlacklist.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)))
-        {
-            Logger?.Invoke($"[Voting] Path rejected by extension blacklist: {path}", LogLevel.Debug);
-            return false;
-        }
-
-        // 2. Game Directory Heuristics
-        if (game?.LocalPath != null && path.StartsWith(game.LocalPath, StringComparison.OrdinalIgnoreCase))
-        {
-            // Even in game directory, we need to be careful of assets
-            // Check if it's a known save extension or contains keywords
-            if (options.SaveExtensionWhitelist.Any(w => w.Equals(ext.TrimStart('.'), StringComparison.OrdinalIgnoreCase)) ||
-                options.SaveKeywordWhitelist.Any(w => fileName.Contains(w, StringComparison.OrdinalIgnoreCase)))
+            if (string.IsNullOrWhiteSpace(path) || !path.Contains(':')) return false;
+    
+            var fileName = Path.GetFileName(path);
+            var ext = Path.GetExtension(path);
+            var extWithoutDot = ext.TrimStart('.');
+            var gameRoot = game?.LocalPath;
+    
+            // 1. Positive Matches (Whitelist) - Higher Priority
+            // If it looks like a save, we accept it regardless of the extension blacklist
+            // (This allows .dat and .bin files which are in both lists)
+            bool isWhitelistedExt = options.SaveExtensionWhitelist.Any(w => w.Equals(extWithoutDot, StringComparison.OrdinalIgnoreCase));
+            bool hasSaveKeyword = options.SaveKeywordWhitelist.Any(w => fileName.Contains(w, StringComparison.OrdinalIgnoreCase));
+    
+            if (isWhitelistedExt || hasSaveKeyword)
             {
-                Logger?.Invoke($"[Voting] Path accepted (Game Directory + Feature Match): {path}", LogLevel.Debug);
-                return true;
+                // We still want to respect PathBlacklist unless it's inside the game root
+                bool isInsideGameRoot = gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase);
+                if (isInsideGameRoot || !options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase)))
+                {
+                    Logger?.Invoke($"[Voting] Path accepted (Feature Match): {path}", LogLevel.Debug);
+                    return true;
+                }
             }
-
-            // If it's a generic file in game directory but doesn't look like an asset, we might still want it
-            // but we give it a lower priority or a more careful check later.
-            // For now, let's keep it rejected if it doesn't match any feature to reduce noise.
-            Logger?.Invoke($"[Voting] Path in game directory but lacks save features, rejecting: {path}", LogLevel.Debug);
+    
+            // 2. Blacklists (Negative Filter)
+            // Only check extension blacklist if it wasn't a strong positive match above
+            if (options.ExtensionBlacklist.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)))
+            {
+                Logger?.Invoke($"[Voting] Path rejected by extension blacklist: {path}", LogLevel.Debug);
+                return false;
+            }
+    
+            bool isActuallyInsideGameRoot = gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase);
+            if (!isActuallyInsideGameRoot && options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase)))
+            {
+                Logger?.Invoke($"[Voting] Path rejected by path blacklist: {path}", LogLevel.Debug);
+                return false;
+            }
+    
+            // 3. Generic Game Directory Heuristics (for other files in game root)
+            if (isActuallyInsideGameRoot)
+            {
+                // We already checked whitelist above, if we are here it's a generic file in game root
+                // To reduce noise from scripts/assets, we reject generic extensions inside game root
+                // unless they matched the whitelist above.
+                Logger?.Invoke($"[Voting] Path in game directory but lacks save features, rejecting: {path}", LogLevel.Debug);
+                return false;
+            }
+    
+            // 4. Default: Reject if no strong evidence
+            Logger?.Invoke($"[Voting] Path rejected (No criteria matched): {path}", LogLevel.Debug);
             return false;
-        }
-
-        // 3. Whitelists
-        if (ext.Length > 1 && options.SaveExtensionWhitelist.Any(w => w.Equals(ext.Substring(1), StringComparison.OrdinalIgnoreCase)))
-        {
-            Logger?.Invoke($"[Voting] Path accepted (Extension Whitelist): {path}", LogLevel.Debug);
-            return true;
-        }
-
-        if (options.SaveKeywordWhitelist.Any(w => fileName.Contains(w, StringComparison.OrdinalIgnoreCase)))
-        {
-            Logger?.Invoke($"[Voting] Path accepted (Keyword Whitelist): {path}", LogLevel.Debug);
-            return true;
-        }
-
-        Logger?.Invoke($"[Voting] Path rejected (No criteria matched): {path}", LogLevel.Debug);
-        return false;
-    }
-    public string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options, Galgame? game = null)
+        }    public string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options, Galgame? game = null)
     {
         if (candidates == null || candidates.Count == 0) return null;
 
@@ -86,6 +85,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
         var directoryScores = new Dictionary<string, ScoredPath>(StringComparer.OrdinalIgnoreCase);
         var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+        var gameRoot = game?.LocalPath;
 
         foreach (var candidate in candidates)
         {
@@ -94,9 +94,12 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             if (Directory.Exists(path) && !File.Exists(path)) directory = path;
 
             if (string.IsNullOrEmpty(directory)) continue;
-            if (IsPathExcluded(directory, currentAppPath, options)) continue;
+            if (IsPathExcluded(directory, currentAppPath, options, gameRoot)) continue;
 
             var normalizedDir = directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            // ... (rest of the loop remains same)
+
 
             if (!directoryScores.TryGetValue(normalizedDir, out var scored))
             {
@@ -227,10 +230,14 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         return winner.Key;
     }
 
-    private bool IsPathExcluded(string path, string appPath, SaveDetectorOptions options)
+    private bool IsPathExcluded(string path, string appPath, SaveDetectorOptions options, string? gameRoot = null)
     {
         if (string.IsNullOrEmpty(path)) return true;
         if (!string.IsNullOrEmpty(appPath) && path.StartsWith(appPath, StringComparison.OrdinalIgnoreCase)) return true;
+
+        // If the path is inside the game root, we don't apply the blacklist
+        if (gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
+            return false;
 
         // Check path blacklist again for directory parts
         return options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase));

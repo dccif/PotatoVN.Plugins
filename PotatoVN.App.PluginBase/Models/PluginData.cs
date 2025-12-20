@@ -16,5 +16,5 @@ public partial class PluginData : ObservableRecipient
     /// <summary>
     /// 是否尝试使用管理员权限（ETW）进行检测
     /// </summary>
-    [ObservableProperty] private bool _useAdminMode = true;
+    [ObservableProperty] private bool _useAdminMode = false;
 }

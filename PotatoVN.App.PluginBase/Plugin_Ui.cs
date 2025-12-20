@@ -21,7 +21,7 @@ public partial class Plugin
 
         StdSetting adminModeSetting = new StdSetting(
             GetLocalized("Ui_UseAdminMode") ?? "Use Admin Mode (ETW)",
-            GetLocalized("Ui_UseAdminModeDescription") ?? "In most cases, the watcher mode is sufficient. Only enable this if you know what you are doing. Uses Windows Event Tracing for more accurate detection.",
+            GetLocalized("Ui_UseAdminModeDescription") ?? "In most cases, the standard watcher mode is sufficient. Only enable this if you know what you are doing.",
             adminToggle);
         stdSetting.Children.Add(adminModeSetting);
 

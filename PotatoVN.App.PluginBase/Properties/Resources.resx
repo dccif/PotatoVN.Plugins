@@ -101,7 +101,7 @@
     <value>Use Admin Mode (ETW)</value>
   </data>
   <data name="Ui_UseAdminModeDescription" xml:space="preserve">
-    <value>Uses Windows Event Tracing for more accurate real-time detection. Requires Administrator privileges.</value>
+    <value>In most cases, the standard watcher mode is sufficient. Only enable this if you know what you are doing.</value>
   </data>
   <data name="Ui_RestartAsAdmin" xml:space="preserve">
     <value>Restart as Admin</value>

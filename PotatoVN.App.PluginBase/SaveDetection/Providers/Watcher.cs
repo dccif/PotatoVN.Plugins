@@ -140,10 +140,15 @@ internal class WatcherProvider : ISaveCandidateProvider
         return keywords.Distinct().ToList();
     }
 
-    private bool IsPathExcluded(string path, string appPath, SaveDetectorOptions options)
+    private bool IsPathExcluded(string path, string appPath, SaveDetectorOptions options, string? gameRoot = null)
     {
         if (string.IsNullOrEmpty(path)) return true;
         if (!string.IsNullOrEmpty(appPath) && path.StartsWith(appPath, StringComparison.OrdinalIgnoreCase)) return true;
+
+        // If the path is inside the game root, we don't apply the blacklist
+        // (because game names or internal folders might match blacklisted words like "tmp")
+        if (gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
+            return false;
 
         return options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase));
     }
@@ -152,10 +157,30 @@ internal class WatcherProvider : ISaveCandidateProvider
     {
         _isMonitoring = true;
         var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+        var gameRoot = context.Game?.LocalPath;
+
+        // Ensure we always watch the game root directory if it exists
+        if (gameRoot != null && Directory.Exists(gameRoot))
+        {
+            // For game root, we only check if it's the app path itself to avoid infinite recursion
+            // but we BYPASS the general PathBlacklist because game folder names often contain words like "TMP"
+            if (!string.IsNullOrEmpty(currentAppPath) && gameRoot.StartsWith(currentAppPath, StringComparison.OrdinalIgnoreCase))
+            {
+                context.Log($"[Watcher] Skipping game root because it is inside app path: {gameRoot}", LogLevel.Debug);
+            }
+            else
+            {
+                context.Log($"[Watcher] Explicitly watching game root: {gameRoot}", LogLevel.Debug);
+                CreateFileSystemWatcher(gameRoot, context, pathFilter);
+            }
+        }
 
         foreach (var path in _candidatePaths)
         {
-            if (IsPathExcluded(path, currentAppPath, context.Settings))
+            // Skip if already watching (e.g. game root)
+            if (_watchers.Any(w => w.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) continue;
+
+            if (IsPathExcluded(path, currentAppPath, context.Settings, gameRoot))
             {
                 context.Log($"[Watcher] Skipping excluded path: {path}", LogLevel.Debug);
                 continue;
@@ -176,6 +201,7 @@ internal class WatcherProvider : ISaveCandidateProvider
 
     private async Task RetryMonitoringAsync(DetectionContext context, Func<string, bool> pathFilter)
     {
+        var gameRoot = context.Game?.LocalPath;
         for (int i = 0; i < context.Settings.WatcherRetryCount; i++)
         {
             await Task.Delay(context.Settings.WatcherRetryIntervalMs, context.Token);
@@ -210,7 +236,7 @@ internal class WatcherProvider : ISaveCandidateProvider
             {
                 IncludeSubdirectories = true,
                 EnableRaisingEvents = true,
-                InternalBufferSize = 4096,
+                InternalBufferSize = 65536, // Increased to 64KB
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.Attributes | NotifyFilters.CreationTime
             };
 
