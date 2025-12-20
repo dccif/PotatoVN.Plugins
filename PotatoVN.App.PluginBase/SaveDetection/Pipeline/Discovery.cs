@@ -9,7 +9,11 @@ internal class DiscoveryStep : IDetectionStep
 {
     public async Task ExecuteAsync(DetectionContext context)
     {
-        var analyzer = new VotingAnalyzer();
+        context.Log("Starting DiscoveryStep...", LogLevel.Info);
+        var analyzer = new VotingAnalyzer
+        {
+            Logger = (msg, level) => context.Log(msg, level)
+        };
         
         // If Admin, use ETW. Else use FileSystemWatcher.
         ISaveCandidateProvider provider;

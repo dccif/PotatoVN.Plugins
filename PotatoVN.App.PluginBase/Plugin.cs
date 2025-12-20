@@ -95,12 +95,12 @@ public partial class Plugin : IPlugin, IPluginSetting
             if (m.Value != null)
             {
                 _activeGame = m.Value;
-                Debug.WriteLine($"Plugin 收到 GalgamePlayedMessage 消息: {m.Value.Name}");
+                Debug.WriteLine($"Plugin 收到 GalgamePlayedMessage 消息: {m.Value.Name.Value}");
 
                 // Only proceed if DetectedSavePath is null
                 if (_activeGame.DetectedSavePath != null)
                 {
-                    Debug.WriteLine($"[Plugin] Save path already exists for {_activeGame.Name}, skipping detection.");
+                    Debug.WriteLine($"[Plugin] Save path already exists for {_activeGame.Name.Value}, skipping detection.");
                     return;
                 }
 
@@ -111,7 +111,7 @@ public partial class Plugin : IPlugin, IPluginSetting
                     var task = new PluginSaveDetectorTask(m.Value, _hostApi.Messenger, _data.UseAdminMode);
                     _hostApi.AddBgTask(task);
 
-                    Debug.WriteLine($"[Plugin] Added SaveDetection task for {_activeGame.Name}");
+                    Debug.WriteLine($"[Plugin] Added SaveDetection task for {_activeGame.Name.Value}");
                 }
             }
         });

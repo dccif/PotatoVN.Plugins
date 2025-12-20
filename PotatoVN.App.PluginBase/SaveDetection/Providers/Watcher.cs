@@ -12,6 +12,7 @@ internal class WatcherProvider : ISaveCandidateProvider
 {
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly List<string> _candidatePaths = new();
+    private readonly HashSet<string> _pendingPaths = new();
     private bool _isMonitoring;
 
     public Task StartAsync(DetectionContext context, Func<string, bool> pathFilter)
@@ -22,9 +23,16 @@ internal class WatcherProvider : ISaveCandidateProvider
             return Task.CompletedTask;
         }
 
+        context.Log("Initializing candidate paths for FileSystemWatcher...", LogLevel.Debug);
         InitializeCandidatePaths(context.Game, context.Settings);
 
         StartMonitoring(context, pathFilter);
+
+        if (_pendingPaths.Count > 0)
+        {
+            _ = RetryMonitoringAsync(context, pathFilter);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -42,11 +50,13 @@ internal class WatcherProvider : ISaveCandidateProvider
         }
         _watchers.Clear();
         _candidatePaths.Clear();
+        _pendingPaths.Clear();
     }
 
     private void InitializeCandidatePaths(Galgame game, SaveDetectorOptions options)
     {
         _candidatePaths.Clear();
+        _pendingPaths.Clear();
 
         // 1. Game Install Path
         if (!string.IsNullOrEmpty(game.LocalPath))
@@ -147,13 +157,48 @@ internal class WatcherProvider : ISaveCandidateProvider
         {
             if (IsPathExcluded(path, currentAppPath, context.Settings))
             {
+                context.Log($"[Watcher] Skipping excluded path: {path}", LogLevel.Debug);
                 continue;
             }
 
             if (Directory.Exists(path))
             {
+                context.Log($"[Watcher] Starting watch on: {path}", LogLevel.Debug);
                 CreateFileSystemWatcher(path, context, pathFilter);
             }
+            else
+            {
+                context.Log($"[Watcher] Path does not exist, adding to pending: {path}", LogLevel.Debug);
+                _pendingPaths.Add(path);
+            }
+        }
+    }
+
+    private async Task RetryMonitoringAsync(DetectionContext context, Func<string, bool> pathFilter)
+    {
+        for (int i = 0; i < context.Settings.WatcherRetryCount; i++)
+        {
+            await Task.Delay(context.Settings.WatcherRetryIntervalMs, context.Token);
+            if (!_isMonitoring || context.Token.IsCancellationRequested || context.TargetProcess.HasExited) return;
+
+            var successfullyAdded = new List<string>();
+            foreach (var path in _pendingPaths)
+            {
+                if (Directory.Exists(path))
+                {
+                    context.Log($"[Watcher] [Retry {i+1}] Path appeared, starting watch: {path}", LogLevel.Debug);
+                    CreateFileSystemWatcher(path, context, pathFilter);
+                    successfullyAdded.Add(path);
+                }
+            }
+
+            foreach (var path in successfullyAdded) _pendingPaths.Remove(path);
+            if (_pendingPaths.Count == 0) break;
+        }
+
+        if (_pendingPaths.Count > 0)
+        {
+            context.Log($"[Watcher] Stopped retrying. {_pendingPaths.Count} paths still missing.", LogLevel.Debug);
         }
     }
 
@@ -172,9 +217,15 @@ internal class WatcherProvider : ISaveCandidateProvider
             FileSystemEventHandler handler = (s, e) =>
             {
                 if (!_isMonitoring) return;
+                context.Log($"[Watcher] File Event: {e.FullPath} ({e.ChangeType})", LogLevel.Debug);
                 if (pathFilter(e.FullPath))
                 {
                     context.Candidates.Enqueue(new PathCandidate(e.FullPath, ProviderSource.FileSystemWatcher, DateTime.Now));
+                    context.Log($"[Watcher] Candidate Added: {e.FullPath}", LogLevel.Debug);
+                }
+                else
+                {
+                    context.Log($"[Watcher] Filtered out: {e.FullPath}", LogLevel.Debug);
                 }
             };
             watcher.Created += handler;

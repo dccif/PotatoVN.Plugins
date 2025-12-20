@@ -75,6 +75,10 @@ public class SaveDetectorOptions
     
     // 等待游戏进程启动的时间（秒）
     public int ProcessWaitTimeSeconds { get; init; } = 10;
+
+    // FileSystemWatcher 重试配置
+    public int WatcherRetryCount { get; init; } = 3;
+    public int WatcherRetryIntervalMs { get; init; } = 5000;
 }
 
 public enum ProviderSource { ETW, FileSystemWatcher, Polling } 

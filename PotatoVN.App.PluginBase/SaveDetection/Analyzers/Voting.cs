@@ -14,35 +14,55 @@ internal class VotingAnalyzer : ISavePathAnalyzer
     private Galgame? _cachedGame;
     private const double SIMILARITY_THRESHOLD = 0.8;
 
+    public Action<string, LogLevel>? Logger { get; set; }
+
     public bool IsValidPath(string path, SaveDetectorOptions options, Galgame? game = null)
     {
         if (string.IsNullOrWhiteSpace(path) || !path.Contains(':')) return false;
 
         // 1. Blacklists
         if (options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase)))
+        {
+            Logger?.Invoke($"[Voting] Path rejected by blacklist: {path}", LogLevel.Debug);
             return false;
+        }
 
         var ext = Path.GetExtension(path);
         if (options.ExtensionBlacklist.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)))
+        {
+            Logger?.Invoke($"[Voting] Path rejected by extension blacklist: {path}", LogLevel.Debug);
             return false;
+        }
 
         // 2. Game Directory (Always allow if inside game folder)
         if (game?.LocalPath != null && path.StartsWith(game.LocalPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Logger?.Invoke($"[Voting] Path accepted (Game Directory): {path}", LogLevel.Debug);
             return true;
+        }
 
         // 3. Whitelists
         if (ext.Length > 1 && options.SaveExtensionWhitelist.Any(w => w.Equals(ext.Substring(1), StringComparison.OrdinalIgnoreCase)))
+        {
+            Logger?.Invoke($"[Voting] Path accepted (Extension Whitelist): {path}", LogLevel.Debug);
             return true;
+        }
 
         var fileName = Path.GetFileName(path);
         if (options.SaveKeywordWhitelist.Any(w => fileName.Contains(w, StringComparison.OrdinalIgnoreCase)))
+        {
+            Logger?.Invoke($"[Voting] Path accepted (Keyword Whitelist): {path}", LogLevel.Debug);
             return true;
+        }
 
+        Logger?.Invoke($"[Voting] Path rejected (No criteria matched): {path}", LogLevel.Debug);
         return false;
     }
     public string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options, Galgame? game = null)
     {
         if (candidates == null || candidates.Count == 0) return null;
+
+        Logger?.Invoke($"[Voting] Starting analysis with {candidates.Count} candidates", LogLevel.Debug);
 
         // Update variants if game context is provided
         if (game != null && game != _cachedGame)
@@ -83,6 +103,18 @@ internal class VotingAnalyzer : ISavePathAnalyzer
                 scored.Score += options.EtwBonusWeight;
         }
 
+        // --- Filename Similarity Mechanism (Super Bonus) ---
+        var similarityWinner = GetSimilarityMechanismWinner(candidates, options);
+        if (similarityWinner != null)
+        {
+            var normalizedSimilarityDir = similarityWinner.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (directoryScores.TryGetValue(normalizedSimilarityDir, out var scored))
+            {
+                scored.Score += 1000; // Provide a massive bonus to ensure priority
+                Logger?.Invoke($"[Voting] Filename similarity winner '{similarityWinner}' received a Super Bonus (+1000)", LogLevel.Debug);
+            }
+        }
+
         // Post-process directory scores
         foreach (var kvp in directoryScores)
         {
@@ -93,12 +125,73 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
             // 5. Path Structure Score
             kvp.Value.Score += GetPathStructureScore(dir, options);
+            
+            Logger?.Invoke($"[Voting] Candidate: {dir} | Score: {kvp.Value.Score} | Votes: {kvp.Value.VoteCount}", LogLevel.Debug);
         }
 
-        return directoryScores.Values
+        var best = directoryScores.Values
             .Where(v => v.VoteCount >= options.MinVoteCountThreshold)
             .OrderByDescending(v => v.Score)
-            .FirstOrDefault(v => v.Score >= options.ConfidenceScoreThreshold)?.Path;
+            .FirstOrDefault(v => v.Score >= options.ConfidenceScoreThreshold);
+            
+        if (best != null)
+        {
+            Logger?.Invoke($"[Voting] Final Winner: {best.Path} (Score: {best.Score})", LogLevel.Debug);
+        }
+        else
+        {
+            Logger?.Invoke("[Voting] No winner found passing threshold.", LogLevel.Debug);
+        }
+
+        return best?.Path;
+    }
+
+    private string? GetSimilarityMechanismWinner(List<PathCandidate> candidates, SaveDetectorOptions options)
+    {
+        if (candidates.Count < 2) return null;
+
+        var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+        var validCandidates = new List<(string Dir, string Name)>();
+        foreach (var c in candidates)
+        {
+            var dir = Path.GetDirectoryName(c.Path);
+            if (Directory.Exists(c.Path) && !File.Exists(c.Path)) dir = c.Path;
+            if (string.IsNullOrEmpty(dir) || IsPathExcluded(dir, currentAppPath, options)) continue;
+            validCandidates.Add((dir, Path.GetFileName(c.Path)));
+        }
+
+        if (validCandidates.Count < 2) return null;
+
+        var similarities = new List<(string Dir1, string Dir2, double Sim)>();
+        for (int i = 0; i < validCandidates.Count; i++)
+        {
+            for (int j = i + 1; j < validCandidates.Count; j++)
+            {
+                var sim = JaroWinkler(validCandidates[i].Name.AsSpan(), validCandidates[j].Name);
+                if (sim >= SIMILARITY_THRESHOLD)
+                {
+                    similarities.Add((validCandidates[i].Dir, validCandidates[j].Dir, sim));
+                }
+            }
+        }
+
+        if (similarities.Count == 0) return null;
+
+        // Take top 2 similarity pairs
+        var topTwo = similarities.OrderByDescending(s => s.Sim).Take(2).ToList();
+        
+        var dirCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in topTwo)
+        {
+            dirCounts[pair.Dir1] = dirCounts.GetValueOrDefault(pair.Dir1) + 1;
+            dirCounts[pair.Dir2] = dirCounts.GetValueOrDefault(pair.Dir2) + 1;
+        }
+
+        int totalInvolvedPaths = topTwo.Count * 2;
+        // Winner must appear in more than half of the involved paths
+        var winner = dirCounts.OrderByDescending(x => x.Value).FirstOrDefault(x => x.Value > totalInvolvedPaths / 2);
+
+        return winner.Key;
     }
 
     private bool IsPathExcluded(string path, string appPath, SaveDetectorOptions options)

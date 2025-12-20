@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 namespace PotatoVN.App.PluginBase;
 
@@ -128,6 +129,12 @@ public class PluginSaveDetectorTask : BgTaskBase
         }
     }
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
     private async Task<Process?> WaitForGameProcessAsync()
     {
         if (string.IsNullOrEmpty(_game?.ExePath)) return null;
@@ -143,6 +150,21 @@ public class PluginSaveDetectorTask : BgTaskBase
             {
                 var processes = Process.GetProcessesByName(exeName);
                 if (processes.Length > 0) return processes[0];
+
+                // Fallback: Use the currently active window
+                var hwnd = GetForegroundWindow();
+                if (hwnd != IntPtr.Zero)
+                {
+                    GetWindowThreadProcessId(hwnd, out var pid);
+                    if (pid != 0)
+                    {
+                        var p = Process.GetProcessById((int)pid);
+                        if (p != null && p.Id != Environment.ProcessId && !p.HasExited)
+                        {
+                            return p;
+                        }
+                    }
+                }
             }
             catch { }
 

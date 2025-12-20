@@ -10,7 +10,11 @@ internal class AnalysisStep : IDetectionStep
 {
     public async Task ExecuteAsync(DetectionContext context)
     {
-        var analyzer = new VotingAnalyzer();
+        context.Log("Starting AnalysisStep...", LogLevel.Info);
+        var analyzer = new VotingAnalyzer
+        {
+            Logger = (msg, level) => context.Log(msg, level)
+        };
         var localCandidates = new List<PathCandidate>();
 
         while (!context.Token.IsCancellationRequested && !context.TargetProcess.HasExited)
@@ -18,6 +22,11 @@ internal class AnalysisStep : IDetectionStep
             // 高效移动数据到本地缓冲区
             while (context.Candidates.TryDequeue(out var c)) 
                 localCandidates.Add(c);
+
+            if (localCandidates.Count > 0)
+            {
+                context.Log($"[Analysis] Processing {localCandidates.Count} candidates...", LogLevel.Debug);
+            }
 
             if (localCandidates.Count >= context.Settings.MinVoteCountThreshold)
             {
