@@ -18,8 +18,8 @@ public class Footer : Grid
     public Footer()
     {
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
-        Padding = new Thickness(60, 20, 60, 40);
-        Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+        this.Padding = new Thickness(60, 10, 60, 15);
+        this.Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
 
         _hintsPanel = new StackPanel
         {

@@ -36,6 +36,7 @@ public class BigScreenWindow : Window
     private const int WS_SYSMENU = 0x00080000;
     private const int WS_MINIMIZEBOX = 0x00020000;
     private const int WS_MAXIMIZEBOX = 0x00010000;
+    private const int WS_POPUP = unchecked((int)0x80000000);
 
     private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_SHOWWINDOW = 0x0040;
@@ -77,6 +78,7 @@ public class BigScreenWindow : Window
                     // This is more reliable than AppWindow for true borderless behavior
                     int style = GetWindowLong(hWnd, GWL_STYLE);
                     style &= ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+                    style |= WS_POPUP; // Add WS_POPUP to ensure taskbar coverage
                     SetWindowLong(hWnd, GWL_STYLE, style);
 
                     // 4. Force position and size to cover the entire monitor (OuterBounds)

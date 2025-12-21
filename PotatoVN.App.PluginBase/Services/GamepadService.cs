@@ -104,19 +104,25 @@ public class GamepadService
 
                 if (pressedButtons != 0)
                 {
-                    if ((pressedButtons & XINPUT_GAMEPAD_A) != 0) Publish(GamepadButton.A);
-                    if ((pressedButtons & XINPUT_GAMEPAD_B) != 0) Publish(GamepadButton.B);
-                    if ((pressedButtons & XINPUT_GAMEPAD_X) != 0) Publish(GamepadButton.X);
-                    if ((pressedButtons & XINPUT_GAMEPAD_Y) != 0) Publish(GamepadButton.Y);
-                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_UP) != 0) Publish(GamepadButton.Up);
-                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0) Publish(GamepadButton.Down);
-                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0) Publish(GamepadButton.Left);
-                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0) Publish(GamepadButton.Right);
-                    if ((pressedButtons & XINPUT_GAMEPAD_START) != 0) Publish(GamepadButton.Start);
-                    if ((pressedButtons & XINPUT_GAMEPAD_BACK) != 0) Publish(GamepadButton.Select);
-                    if ((pressedButtons & XINPUT_GAMEPAD_GUIDE) != 0) Publish(GamepadButton.Guide);
+                    // Prioritize System Buttons
+                    if ((pressedButtons & XINPUT_GAMEPAD_GUIDE) != 0) { Publish(GamepadButton.Guide); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_START) != 0) { Publish(GamepadButton.Start); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_BACK) != 0) { Publish(GamepadButton.Select); goto End; }
+
+                    // Prioritize Action Buttons (A/B usually most important)
+                    if ((pressedButtons & XINPUT_GAMEPAD_A) != 0) { Publish(GamepadButton.A); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_B) != 0) { Publish(GamepadButton.B); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_X) != 0) { Publish(GamepadButton.X); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_Y) != 0) { Publish(GamepadButton.Y); goto End; }
+
+                    // Navigation (prevent diagonal/simultaneous directional moves)
+                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_UP) != 0) { Publish(GamepadButton.Up); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0) { Publish(GamepadButton.Down); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0) { Publish(GamepadButton.Left); goto End; }
+                    if ((pressedButtons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0) { Publish(GamepadButton.Right); goto End; }
                 }
 
+            End:
                 _lastButtons = currentButtons;
             }
         }

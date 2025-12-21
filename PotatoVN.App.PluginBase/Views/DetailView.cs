@@ -28,15 +28,15 @@ public class DetailView : Grid
 
         if (game.HeaderImagePath.Value is string headerPath && !string.IsNullOrEmpty(headerPath))
         {
-            Children.Add(new Image
+            this.Children.Add(new Image
             {
                 Source = new BitmapImage(new Uri(headerPath)),
                 Stretch = Stretch.UniformToFill,
-                Opacity = 0.3
+                Opacity = 1.0
             });
         }
 
-        Children.Add(new Grid
+        this.Children.Add(new Grid
         {
             Background = new LinearGradientBrush
             {
@@ -44,7 +44,7 @@ public class DetailView : Grid
                 EndPoint = new Windows.Foundation.Point(1, 0),
                 GradientStops = new GradientStopCollection
                 {
-                    new GradientStop { Color = Color.FromArgb(255, 12, 15, 20), Offset = 0 },
+                    new GradientStop { Color = Color.FromArgb(200, 12, 15, 20), Offset = 0 },
                     new GradientStop { Color = Color.FromArgb(0, 12, 15, 20), Offset = 1 }
                 }
             }
@@ -70,7 +70,8 @@ public class DetailView : Grid
             Padding = new Thickness(60, 15, 60, 15),
             Background = new SolidColorBrush(Colors.Green),
             Foreground = new SolidColorBrush(Colors.White),
-            CornerRadius = new CornerRadius(4)
+            CornerRadius = new CornerRadius(4),
+            IsEnabled = !string.IsNullOrEmpty(game.ExePath)
         };
         playBtn.Click += (s, e) => SimpleEventBus.Instance.Publish(new LaunchGameMessage(_game));
 
