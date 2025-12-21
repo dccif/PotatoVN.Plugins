@@ -17,6 +17,7 @@ public partial class Plugin : IPlugin, IPluginSetting
 {
     private IPotatoVnApi _hostApi = null!;
     internal static IPotatoVnApi? HostApi { get; private set; }
+    internal static PluginData CurrentData { get; private set; } = new();
     private PluginData _data = new();
     private static ResourceManager? _resourceManager;
     private static CultureInfo? _pluginCulture;
@@ -57,6 +58,7 @@ public partial class Plugin : IPlugin, IPluginSetting
                 _data = new PluginData();
             }
         }
+        CurrentData = _data;
         _data.PropertyChanged += (_, _) => SaveData(); // 当Observable属性变化时自动保存数据，对于普通属性请手动调用SaveData
 
         // Language Setup

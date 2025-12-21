@@ -17,6 +17,21 @@ public class GameLibraryView : GridView
     public GameLibraryView(List<Galgame> games, Galgame? initialSelection = null)
     {
         _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        
+        // Initial Sort
+        var sortType = Plugin.CurrentData.SortType;
+        var ascending = Plugin.CurrentData.SortAscending;
+        if (sortType == SortType.LastPlayTime)
+        {
+            if (ascending) games.Sort((a, b) => a.LastPlayTime.CompareTo(b.LastPlayTime));
+            else games.Sort((a, b) => b.LastPlayTime.CompareTo(a.LastPlayTime));
+        }
+        else // AddTime
+        {
+            if (ascending) games.Sort((a, b) => a.AddTime.CompareTo(b.AddTime));
+            else games.Sort((a, b) => b.AddTime.CompareTo(a.AddTime));
+        }
+
         this.ItemsSource = games;
         this.ItemTemplate = GameItemTemplate.GetTemplate();
         this.SelectionMode = ListViewSelectionMode.Single;
@@ -57,6 +72,7 @@ public class GameLibraryView : GridView
         {
              // Subscribe on Load
              SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
+             SimpleEventBus.Instance.Subscribe<SortChangedMessage>(OnSortChanged);
 
              if (_isFirstLoad)
              {
@@ -87,26 +103,65 @@ public class GameLibraryView : GridView
                  });
                  _isFirstLoad = false;
              }
-             else
-             {
-                 // On subsequent loads (returning from Detail), just ensure focus is restored to the selected item if lost
-                 _dispatcherQueue.TryEnqueue(() =>
-                 {
-                     if (this.XamlRoot != null)
-                     {
-                         var targetItem = this.SelectedItem;
-                         if (targetItem != null)
-                         {
-                            var container = this.ContainerFromItem(targetItem) as Control;
+            else
+            {
+                // On subsequent loads (returning from Detail), just ensure focus is restored to the selected item if lost
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (XamlRoot != null)
+                    {
+                        var targetItem = SelectedItem;
+                        if (targetItem != null)
+                        {
+                            var container = ContainerFromItem(targetItem) as Control;
                             container?.Focus(FocusState.Programmatic);
-                         }
-                         PublishHints();
-                     }
-                 });
-             }
+                        }
+                        PublishHints();
+                    }
+                });
+            }
         };
 
-        this.Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
+        Unloaded += (s, e) =>
+        {
+            SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
+            SimpleEventBus.Instance.Unsubscribe<SortChangedMessage>(OnSortChanged);
+        };
+    }
+
+    private void OnSortChanged(SortChangedMessage msg)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            var selected = SelectedItem as Galgame;
+            var games = ItemsSource as List<Galgame>;
+            if (games == null) return;
+
+            if (msg.Type == SortType.LastPlayTime)
+            {
+                if (msg.Ascending) games.Sort((a, b) => a.LastPlayTime.CompareTo(b.LastPlayTime));
+                else games.Sort((a, b) => b.LastPlayTime.CompareTo(a.LastPlayTime));
+            }
+            else // AddTime
+            {
+                if (msg.Ascending) games.Sort((a, b) => a.AddTime.CompareTo(b.AddTime));
+                else games.Sort((a, b) => b.AddTime.CompareTo(a.AddTime));
+            }
+
+            // Refresh View
+            ItemsSource = null;
+            ItemsSource = games;
+
+            if (selected != null)
+            {
+                SelectedItem = selected;
+                ScrollIntoView(selected);
+
+                // Refocus
+                var container = ContainerFromItem(selected) as Control;
+                container?.Focus(FocusState.Programmatic);
+            }
+        });
     }
     private void SyncSelectionToFocus(DependencyObject? originalSource)
     {

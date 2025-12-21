@@ -39,23 +39,23 @@ public class GamepadService
     private static extern int XInputGetStateEx(int dwUserIndex, out XINPUT_STATE pState);
 
     private const int ERROR_SUCCESS = 0;
-    
+
     // XInput Button Constants
-    private const int XINPUT_GAMEPAD_DPAD_UP        = 0x0001;
-    private const int XINPUT_GAMEPAD_DPAD_DOWN      = 0x0002;
-    private const int XINPUT_GAMEPAD_DPAD_LEFT      = 0x0004;
-    private const int XINPUT_GAMEPAD_DPAD_RIGHT     = 0x0008;
-    private const int XINPUT_GAMEPAD_START          = 0x0010;
-    private const int XINPUT_GAMEPAD_BACK           = 0x0020;
-    private const int XINPUT_GAMEPAD_LEFT_THUMB     = 0x0040;
-    private const int XINPUT_GAMEPAD_RIGHT_THUMB    = 0x0080;
-    private const int XINPUT_GAMEPAD_LEFT_SHOULDER  = 0x0100;
+    private const int XINPUT_GAMEPAD_DPAD_UP = 0x0001;
+    private const int XINPUT_GAMEPAD_DPAD_DOWN = 0x0002;
+    private const int XINPUT_GAMEPAD_DPAD_LEFT = 0x0004;
+    private const int XINPUT_GAMEPAD_DPAD_RIGHT = 0x0008;
+    private const int XINPUT_GAMEPAD_START = 0x0010;
+    private const int XINPUT_GAMEPAD_BACK = 0x0020;
+    private const int XINPUT_GAMEPAD_LEFT_THUMB = 0x0040;
+    private const int XINPUT_GAMEPAD_RIGHT_THUMB = 0x0080;
+    private const int XINPUT_GAMEPAD_LEFT_SHOULDER = 0x0100;
     private const int XINPUT_GAMEPAD_RIGHT_SHOULDER = 0x0200;
-    private const int XINPUT_GAMEPAD_A              = 0x1000;
-    private const int XINPUT_GAMEPAD_B              = 0x2000;
-    private const int XINPUT_GAMEPAD_X              = 0x4000;
-    private const int XINPUT_GAMEPAD_Y              = 0x8000;
-    private const int XINPUT_GAMEPAD_GUIDE          = 0x0400;
+    private const int XINPUT_GAMEPAD_A = 0x1000;
+    private const int XINPUT_GAMEPAD_B = 0x2000;
+    private const int XINPUT_GAMEPAD_X = 0x4000;
+    private const int XINPUT_GAMEPAD_Y = 0x8000;
+    private const int XINPUT_GAMEPAD_GUIDE = 0x0400;
 
     private ushort _lastButtons = 0;
 
@@ -73,7 +73,7 @@ public class GamepadService
     public void Stop()
     {
         if (!IsRunning) return;
-        
+
         _cts?.Cancel();
         IsRunning = false;
         // We don't wait for the task to finish to avoid blocking UI, 
@@ -84,7 +84,7 @@ public class GamepadService
     {
         var token = _cts!.Token;
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(20)); // High responsiveness
-        
+
         while (!token.IsCancellationRequested && await timer.WaitForNextTickAsync(token))
         {
             ProcessInput();
@@ -128,7 +128,7 @@ public class GamepadService
         }
         catch { }
     }
-    
+
     private void Publish(GamepadButton btn)
     {
         SimpleEventBus.Instance.Publish(new GamepadInputMessage(btn));

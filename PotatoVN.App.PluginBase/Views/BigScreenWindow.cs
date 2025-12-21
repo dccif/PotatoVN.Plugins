@@ -37,7 +37,10 @@ public class BigScreenWindow : Window
     private const int WS_MINIMIZEBOX = 0x00020000;
     private const int WS_MAXIMIZEBOX = 0x00010000;
     private const int WS_POPUP = unchecked((int)0x80000000);
+    private const int WS_MAXIMIZE = 0x01000000;
 
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_SHOWWINDOW = 0x0040;
     private static readonly IntPtr HWND_TOP = new IntPtr(0);
@@ -49,6 +52,16 @@ public class BigScreenWindow : Window
 
         // 2. 设置全屏逻辑 (手动移除边框并定位)
         PositionWindowOnCurrentMonitor();
+
+        // 3. 监听激活事件，确保窗口在获得焦点时覆盖任务栏 (修复OBS等录屏软件导致的Z-Order问题)
+        Activated += (s, e) =>
+        {
+            if (e.WindowActivationState != WindowActivationState.Deactivated)
+            {
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            }
+        };
     }
 
     private void PositionWindowOnCurrentMonitor()
@@ -78,7 +91,7 @@ public class BigScreenWindow : Window
                     // This is more reliable than AppWindow for true borderless behavior
                     int style = GetWindowLong(hWnd, GWL_STYLE);
                     style &= ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
-                    style |= WS_POPUP; // Add WS_POPUP to ensure taskbar coverage
+                    style |= WS_POPUP | WS_MAXIMIZE; // Add WS_POPUP and WS_MAXIMIZE to ensure taskbar coverage
                     SetWindowLong(hWnd, GWL_STYLE, style);
 
                     // 4. Force position and size to cover the entire monitor (OuterBounds)

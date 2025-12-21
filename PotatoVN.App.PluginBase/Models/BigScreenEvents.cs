@@ -6,9 +6,11 @@ namespace PotatoVN.App.PluginBase.Models;
 
 // Enums
 public enum GamepadButton { A, B, X, Y, Up, Down, Left, Right, Start, Select, Guide }
+public enum SortType { LastPlayTime, AddTime }
 
 // Input
 public record GamepadInputMessage(GamepadButton Button);
+public record SortChangedMessage(SortType Type, bool Ascending);
 
 // Hints
 public record HintAction(string Label, string Button, Action? Action = null);
