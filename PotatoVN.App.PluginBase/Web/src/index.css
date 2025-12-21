@@ -1,0 +1,21 @@
+:root {
+  --bg-color: #1a1f29;
+  --card-bg: #2d3440;
+  --focus-border: #1a9fff;
+  --text-color: #ffffff;
+  --secondary-text: #a1aab7;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  display: none; 
+}

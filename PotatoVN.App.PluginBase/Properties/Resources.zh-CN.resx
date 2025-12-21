@@ -123,4 +123,13 @@
   <data name="PluginName" xml:space="preserve">
     <value>大屏模式</value>
   </data>
+  <data name="EnterBigScreen" xml:space="preserve">
+    <value>进入大屏模式</value>
+  </data>
+  <data name="BigScreenTitle" xml:space="preserve">
+    <value>大屏模式</value>
+  </data>
+  <data name="BigScreenDesc" xml:space="preserve">
+    <value>进入大屏沉浸式体验</value>
+  </data>
 </root>

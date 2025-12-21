@@ -123,4 +123,13 @@
   <data name="PluginName" xml:space="preserve">
     <value>Big Screen Mode</value>
   </data>
+  <data name="EnterBigScreen" xml:space="preserve">
+    <value>Enter Big Screen Mode</value>
+  </data>
+  <data name="BigScreenTitle" xml:space="preserve">
+    <value>Big Screen</value>
+  </data>
+  <data name="BigScreenDesc" xml:space="preserve">
+    <value>Enter Big Screen Mode</value>
+  </data>
 </root>

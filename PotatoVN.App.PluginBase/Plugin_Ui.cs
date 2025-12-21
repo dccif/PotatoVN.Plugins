@@ -11,27 +11,18 @@ public partial class Plugin
 {
     public FrameworkElement CreateSettingUi()
     {
-        StdStackPanel panel = new();
-        panel.Children.Add(new UserControl1().WarpWithPanel());
-        panel.Children.Add(new StdSetting("设置标题", "这是一个设置",
-            AddToggleSwitch(_data, nameof(_data.TestBool))).WarpWithPanel());
-        StdAccountPanel accountPanel = new StdAccountPanel("title", "userName", "Description",
-            new Button().WarpWithPanel());
-        panel.Children.Add(accountPanel);
-        return panel;
-    }
+        StdStackPanel panel = new();      
 
-    private ToggleSwitch AddToggleSwitch(object source, string propName)
-    {
-        ToggleSwitch toggle = new();
-        Binding binding = new()
+        Button bigScreenBtn = new() { Content = GetLocalized("EnterBigScreen") ?? "Enter Big Screen Mode" };
+        bigScreenBtn.Click += (_, _) =>
         {
-            Source = source,
-            Path = new PropertyPath(propName),
-            Mode = BindingMode.TwoWay,
-            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            var games = _hostApi.GetAllGames();
+            var pluginPath = _hostApi.GetPluginPath();
+            var window = new Views.BigScreenWindow(games, pluginPath);
+            window.Activate();
         };
-        toggle.SetBinding(ToggleSwitch.IsOnProperty, binding);
-        return toggle;
+        panel.Children.Add(new StdSetting(GetLocalized("BigScreenTitle") ?? "Big Screen", 
+            GetLocalized("BigScreenDesc") ?? "Enter Big Screen Mode", bigScreenBtn).WarpWithPanel());
+        return panel;
     }
 }

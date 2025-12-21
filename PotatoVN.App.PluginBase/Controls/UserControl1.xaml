@@ -7,10 +7,8 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel Spacing="10" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock FontSize="24" Text="大家好，我是插件！" />
-        <TextBlock Text="这是一个来自外部DLL的用户控件。" />
-        <Button x:Name="PluginButton" Content="点击我" Click="PluginButton_Click"/>
-        <TextBlock x:Name="StatusText" />
+    <StackPanel>
+        <Button Content="Click Me" Click="PluginButton_Click" />
+        <TextBlock x:Name="StatusText" Text="Ready" />
     </StackPanel>
 </UserControl>

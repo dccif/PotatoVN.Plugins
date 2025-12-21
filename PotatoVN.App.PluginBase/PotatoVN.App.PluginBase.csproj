@@ -20,6 +20,13 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+  
+  <ItemGroup>
+    <None Update="Web\dist\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\PotatoVN\GalgameManager.WinApp.Base\GalgameManager.WinApp.Base.csproj">
       <Private>false</Private>
