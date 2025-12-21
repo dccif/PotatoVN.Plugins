@@ -3,6 +3,8 @@ using GalgameManager.WinApp.Base.Contracts;
 using GalgameManager.WinApp.Base.Contracts.PluginUi;
 using GalgameManager.WinApp.Base.Models;
 using PotatoVN.App.PluginBase.Models;
+using PotatoVN.App.PluginBase.Patches;
+using HarmonyLib;
 using System;
 using System.Diagnostics;
 using System.Globalization;
@@ -86,6 +88,15 @@ public partial class Plugin : IPlugin, IPluginSetting
             Debug.WriteLine($"[Plugin] Language Setup Error: {ex}");
         }
 
+        try
+        {
+            var harmony = new Harmony("PotatoVN.App.Plugin.BigScreen");
+            BigScreenInputPatch.Apply(harmony);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Plugin] Harmony Patch Error: {ex}");
+        }
     }
 
     private void SaveData()
@@ -95,5 +106,8 @@ public partial class Plugin : IPlugin, IPluginSetting
     }
 
     protected Guid Id => Info.Id;
+
+    // GamepadService is a singleton and lives for the app lifetime.
+    // Explicit disposal is not required here unless plugin unload is supported.
 }
 

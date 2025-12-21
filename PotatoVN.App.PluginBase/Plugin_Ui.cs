@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using PotatoVN.App.PluginBase.Controls;
@@ -11,7 +11,7 @@ public partial class Plugin
 {
     public FrameworkElement CreateSettingUi()
     {
-        StdStackPanel panel = new();      
+        StdStackPanel panel = new();
 
         Button bigScreenBtn = new() { Content = GetLocalized("EnterBigScreen") ?? "Enter Big Screen Mode" };
         bigScreenBtn.Click += (_, _) =>
@@ -21,7 +21,7 @@ public partial class Plugin
             var window = new Views.BigScreenWindow(games);
             window.Activate();
         };
-        panel.Children.Add(new StdSetting(GetLocalized("BigScreenTitle") ?? "Big Screen", 
+        panel.Children.Add(new StdSetting(GetLocalized("BigScreenTitle") ?? "Big Screen",
             GetLocalized("BigScreenDesc") ?? "Enter Big Screen Mode", bigScreenBtn).WarpWithPanel());
         return panel;
     }

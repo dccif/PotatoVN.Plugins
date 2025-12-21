@@ -132,4 +132,7 @@
   <data name="BigScreenDesc" xml:space="preserve">
     <value>进入大屏沉浸式体验</value>
   </data>
+  <data name="EnteringBigScreen" xml:space="preserve">
+    <value>正在进入大屏模式...</value>
+  </data>
 </root>

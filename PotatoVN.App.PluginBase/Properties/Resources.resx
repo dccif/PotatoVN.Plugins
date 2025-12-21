@@ -124,12 +124,15 @@
     <value>Big Screen Mode</value>
   </data>
   <data name="EnterBigScreen" xml:space="preserve">
-    <value>Enter Big Screen Mode</value>
+    <value>Entering Big Screen Mode</value>
   </data>
   <data name="BigScreenTitle" xml:space="preserve">
     <value>Big Screen</value>
   </data>
   <data name="BigScreenDesc" xml:space="preserve">
     <value>Enter Big Screen Mode</value>
+  </data>
+  <data name="EnteringBigScreen" xml:space="preserve">
+    <value>Entering Big Screen Mode...</value>
   </data>
 </root>

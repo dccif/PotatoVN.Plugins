@@ -124,12 +124,15 @@
     <value>大画面モード</value>
   </data>
   <data name="EnterBigScreen" xml:space="preserve">
-    <value>大画面モードに入る</value>
+    <value>大画面モードに</value>
   </data>
   <data name="BigScreenTitle" xml:space="preserve">
     <value>大画面</value>
   </data>
   <data name="BigScreenDesc" xml:space="preserve">
     <value>大画面モードに入ります</value>
+  </data>
+  <data name="EnteringBigScreen" xml:space="preserve">
+    <value>大画面モードに移行中...</value>
   </data>
 </root>
