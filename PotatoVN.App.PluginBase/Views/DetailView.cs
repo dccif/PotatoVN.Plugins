@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using GalgameManager.Models;
 using Microsoft.UI;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using PotatoVN.App.PluginBase.Models;
@@ -15,20 +13,20 @@ using Windows.UI;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public class DetailView : Grid
+public class DetailView : BigScreenViewBase
 {
     private readonly Galgame _game;
-    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
+    private Button? _playBtn;
 
     public DetailView(Galgame game)
     {
         _game = game;
-        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        Padding = new Thickness(60, 20, 60, 40);
+
+        var rootGrid = new Grid { Padding = new Thickness(60, 20, 60, 40) };
 
         if (game.HeaderImagePath.Value is string headerPath && !string.IsNullOrEmpty(headerPath))
         {
-            this.Children.Add(new Image
+            rootGrid.Children.Add(new Image
             {
                 Source = new BitmapImage(new Uri(headerPath)),
                 Stretch = Stretch.UniformToFill,
@@ -36,7 +34,7 @@ public class DetailView : Grid
             });
         }
 
-        this.Children.Add(new Grid
+        rootGrid.Children.Add(new Grid
         {
             Background = new LinearGradientBrush
             {
@@ -63,7 +61,7 @@ public class DetailView : Grid
         infoStack.Children.Add(CreateInfoItem(Plugin.GetLocalized("BigScreen_PlayTime") ?? "PLAY TIME", playTimeStr));
         stack.Children.Add(infoStack);
 
-        var playBtn = new Button
+        _playBtn = new Button
         {
             Content = Plugin.GetLocalized("BigScreen_Play") ?? "PLAY",
             FontSize = 24,
@@ -71,12 +69,13 @@ public class DetailView : Grid
             Background = new SolidColorBrush(Colors.Green),
             Foreground = new SolidColorBrush(Colors.White),
             CornerRadius = new CornerRadius(4),
-            IsEnabled = !string.IsNullOrEmpty(game.ExePath)
+            IsEnabled = !string.IsNullOrEmpty(game.ExePath),
+            IsTabStop = true
         };
-        playBtn.Click += (s, e) => SimpleEventBus.Instance.Publish(new LaunchGameMessage(_game));
+        _playBtn.Click += (s, e) => SimpleEventBus.Instance.Publish(new LaunchGameMessage(_game));
 
         // Handle Back button manually since we are in a sub-view
-        playBtn.KeyDown += (s, e) =>
+        _playBtn.KeyDown += (s, e) =>
         {
             if (e.Key == VirtualKey.GamepadB || e.Key == VirtualKey.Escape)
             {
@@ -85,46 +84,39 @@ public class DetailView : Grid
             }
         };
 
-        stack.Children.Add(playBtn);
+        stack.Children.Add(_playBtn);
 
         stack.Children.Add(new TextBlock { Text = game.Description.Value, FontSize = 18, Foreground = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)), TextWrapping = TextWrapping.Wrap, MaxHeight = 200, TextTrimming = TextTrimming.CharacterEllipsis });
 
-        Children.Add(stack);
-
-        // Subscribe to input events
-        SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
-
-        Loaded += (s, e) =>
-        {
-            playBtn.Focus(FocusState.Programmatic);
-            PublishHints();
-        };
-
-        Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
-
-        GotFocus += (s, e) => PublishHints();
+        rootGrid.Children.Add(stack);
+        this.Content = rootGrid;
     }
 
-    private void OnGamepadInput(GamepadInputMessage msg)
+    public override void OnNavigatedTo(object? parameter)
     {
-        _dispatcherQueue.TryEnqueue(() =>
+        base.OnNavigatedTo(parameter);
+        _dispatcherQueue.TryEnqueue(async () =>
         {
-            // Only act if this view is effectively active (in visual tree)
-            if (XamlRoot == null) return;
-
-            switch (msg.Button)
-            {
-                case GamepadButton.A:
-                    SimpleEventBus.Instance.Publish(new LaunchGameMessage(_game));
-                    break;
-                case GamepadButton.B:
-                    SimpleEventBus.Instance.Publish(new NavigateToLibraryMessage());
-                    break;
-            }
+            await System.Threading.Tasks.Task.Delay(50);
+            _playBtn?.Focus(FocusState.Programmatic);
+            PublishHints();
         });
     }
 
-    private void PublishHints()
+    public override void OnGamepadInput(GamepadButton button)
+    {
+        switch (button)
+        {
+            case GamepadButton.A:
+                SimpleEventBus.Instance.Publish(new LaunchGameMessage(_game));
+                break;
+            case GamepadButton.B:
+                SimpleEventBus.Instance.Publish(new NavigateToLibraryMessage());
+                break;
+        }
+    }
+
+    public override void PublishHints()
     {
         SimpleEventBus.Instance.Publish(new UpdateHintsMessage(new List<HintAction>
         {

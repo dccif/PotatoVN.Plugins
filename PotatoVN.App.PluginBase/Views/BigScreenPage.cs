@@ -4,6 +4,7 @@ using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
 using HarmonyLib;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Services;
@@ -21,9 +22,9 @@ public partial class BigScreenPage : Grid
     private readonly ContentControl _contentArea;
     private readonly Footer _footer;
     private readonly Header _header;
+    private readonly BigScreenNavigationService _navService;
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
     private Galgame? _lastSelectedGame;
-    private GameLibraryView? _libraryView;
 
     public BigScreenPage(Window parentWindow, List<Galgame> games, Galgame? initialGame = null)
     {
@@ -36,15 +37,15 @@ public partial class BigScreenPage : Grid
         GamepadService.Instance.Start();
 
         Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 12, 15, 20));
-        // We let children handle navigation, but keep this for global focus trapping if needed
-        XYFocusKeyboardNavigation = Microsoft.UI.Xaml.Input.XYFocusKeyboardNavigationMode.Enabled;
+        // Global XY Navigation
+        XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled;
 
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Content
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Footer
 
         // Header
-        _header = new Header();
+        _header = new Header { IsTabStop = true };
         Children.Add(_header);
         Grid.SetRow(_header, 0);
 
@@ -53,7 +54,8 @@ public partial class BigScreenPage : Grid
         {
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
-            IsTabStop = false
+            IsTabStop = false,
+            XYFocusUp = _header // Guide focus up to Header
         };
         Children.Add(_contentArea);
         Grid.SetRow(_contentArea, 1);
@@ -63,6 +65,18 @@ public partial class BigScreenPage : Grid
         Children.Add(_footer);
         Grid.SetRow(_footer, 2);
 
+        // Navigation Service Initialization
+        _navService = new BigScreenNavigationService(_contentArea, ViewFactory);
+
+        // Catch lost focus
+        this.GotFocus += (s, e) =>
+        {
+            if (e.OriginalSource == this)
+            {
+                (_contentArea.Content as Control)?.Focus(FocusState.Programmatic);
+            }
+        };
+
         // Subscribe to Bus
         SimpleEventBus.Instance.Subscribe<NavigateToDetailMessage>(OnNavigateToDetail);
         SimpleEventBus.Instance.Subscribe<NavigateToLibraryMessage>(OnNavigateToLibrary);
@@ -70,7 +84,7 @@ public partial class BigScreenPage : Grid
         SimpleEventBus.Instance.Subscribe<LaunchGameMessage>(OnLaunchGame);
 
         // Initial View
-        ShowLibrary();
+        _navService.NavigateTo(ViewKey.Library, _lastSelectedGame);
 
         Unloaded += (s, e) =>
         {
@@ -84,12 +98,26 @@ public partial class BigScreenPage : Grid
         };
     }
 
+    private BigScreenViewBase ViewFactory(ViewKey key, object? param)
+    {
+        switch (key)
+        {
+            case ViewKey.Library:
+                return new GameLibraryView(_games, param as Galgame ?? _lastSelectedGame);
+            case ViewKey.Detail:
+                if (param is Galgame g) return new DetailView(g);
+                throw new ArgumentException("Detail view requires a Galgame parameter");
+            default:
+                throw new ArgumentException($"Unknown ViewKey: {key}");
+        }
+    }
+
     private async void OnNavigateToDetail(NavigateToDetailMessage msg)
     {
         _lastSelectedGame = msg.Game;
         _dispatcherQueue.TryEnqueue(() =>
         {
-            _contentArea.Content = new DetailView(msg.Game);
+            _navService.NavigateTo(ViewKey.Detail, msg.Game);
         });
 
         if (Plugin.HostApi != null)
@@ -102,13 +130,13 @@ public partial class BigScreenPage : Grid
 
                 if (invokeMethod != null)
                 {
-#pragma warning disable CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
-#pragma warning disable CS8602 // 解引用可能出现空引用。
+#pragma warning disable CS8600
+#pragma warning disable CS8602
                     await (Task)invokeMethod.Invoke(null, [ new Action(() =>
                            Plugin.HostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = msg.Game, StartGame = false })
                     ) ]);
-#pragma warning restore CS8602 // 解引用可能出现空引用。
-#pragma warning restore CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
+#pragma warning restore CS8602
+#pragma warning restore CS8600
                 }
             }
             catch (Exception ex)
@@ -122,7 +150,7 @@ public partial class BigScreenPage : Grid
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
-            ShowLibrary();
+            _navService.NavigateTo(ViewKey.Library, _lastSelectedGame);
         });
     }
 
@@ -141,14 +169,5 @@ public partial class BigScreenPage : Grid
             System.Diagnostics.Debug.WriteLine($"Launching Game: {msg.Game.Name.Value}");
             // Here you would call the actual game launch service
         });
-    }
-
-    private void ShowLibrary()
-    {
-        if (_libraryView == null)
-        {
-            _libraryView = new GameLibraryView(_games, _lastSelectedGame);
-        }
-        _contentArea.Content = _libraryView;
     }
 }

@@ -3,24 +3,72 @@ using System.Collections.Generic;
 using GalgameManager.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Services;
 using PotatoVN.App.PluginBase.Templates;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public class GameLibraryView : GridView
+public class GameLibraryView : BigScreenViewBase
 {
-    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
-    private bool _isFirstLoad = true;
+    public GridView GridViewInner { get; private set; }
+    private Galgame? _initialSelection;
 
     public GameLibraryView(List<Galgame> games, Galgame? initialSelection = null)
     {
-        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        
+        _initialSelection = initialSelection;
+
         // Initial Sort
         var sortType = Plugin.CurrentData.SortType;
         var ascending = Plugin.CurrentData.SortAscending;
+        SortGames(games, sortType, ascending);
+
+        GridViewInner = new GridView
+        {
+            ItemsSource = games,
+            ItemTemplate = GameItemTemplate.GetTemplate(),
+            SelectionMode = ListViewSelectionMode.Single,
+            IsItemClickEnabled = true,
+            Padding = new Thickness(60, 20, 60, 40),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            // 核心：禁用原生导航防止 AccessViolationException
+            XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Disabled,
+            IsTabStop = true
+        };
+
+        GridViewInner.GotFocus += (s, e) =>
+        {
+            PublishHints();
+            SyncSelectionToFocus(e.OriginalSource as DependencyObject);
+        };
+
+        GridViewInner.ItemClick += (s, e) =>
+        {
+            if (e.ClickedItem is Galgame g)
+            {
+                SimpleEventBus.Instance.Publish(new NavigateToDetailMessage(g));
+            }
+        };
+
+        // Backup KeyDown handler
+        GridViewInner.KeyDown += (s, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
+            {
+                SimpleEventBus.Instance.Publish(new AppExitMessage());
+                e.Handled = true;
+            }
+        };
+
+        this.Content = GridViewInner;
+
+        this.Loaded += (s, e) => SimpleEventBus.Instance.Subscribe<SortChangedMessage>(OnSortChanged);
+        this.Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<SortChangedMessage>(OnSortChanged);
+    }
+
+    private void SortGames(List<Galgame> games, SortType sortType, bool ascending)
+    {
         if (sortType == SortType.LastPlayTime)
         {
             if (ascending) games.Sort((a, b) => a.LastPlayTime.CompareTo(b.LastPlayTime));
@@ -31,206 +79,158 @@ public class GameLibraryView : GridView
             if (ascending) games.Sort((a, b) => a.AddTime.CompareTo(b.AddTime));
             else games.Sort((a, b) => b.AddTime.CompareTo(a.AddTime));
         }
+    }
 
-        this.ItemsSource = games;
-        this.ItemTemplate = GameItemTemplate.GetTemplate();
-        this.SelectionMode = ListViewSelectionMode.Single;
-        this.IsItemClickEnabled = true;
-        this.Padding = new Thickness(60, 20, 60, 40);
-        this.HorizontalAlignment = HorizontalAlignment.Center;
-        this.XYFocusKeyboardNavigation = Microsoft.UI.Xaml.Input.XYFocusKeyboardNavigationMode.Enabled;
-        this.IsTabStop = true;
+    public override void FocusDefaultElement()
+    {
+        var targetItem = GridViewInner.SelectedItem;
+        if (targetItem != null)
+        {
+            var container = GridViewInner.ContainerFromItem(targetItem) as Control;
+            (container ?? GridViewInner).Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            GridViewInner.Focus(FocusState.Programmatic);
+        }
+    }
 
-        this.GotFocus += (s, e) => 
+    public override void OnNavigatedTo(object? parameter)
+    {
+        base.OnNavigatedTo(parameter);
+
+        if (parameter is Galgame g)
         {
-            PublishHints();
-            SyncSelectionToFocus(e.OriginalSource as DependencyObject);
-        };
-        
-        this.ItemClick += (s, e) =>
+            _initialSelection = g;
+        }
+
+        _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (e.ClickedItem is Galgame g)
+            await System.Threading.Tasks.Task.Delay(50);
+
+            if (GridViewInner.Items.Count > 0)
             {
-                SimpleEventBus.Instance.Publish(new NavigateToDetailMessage(g));
-            }
-        };
-        
-        // Backup KeyDown handler
-        this.KeyDown += (s, e) =>
-        {
-            if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
-            {
-                SimpleEventBus.Instance.Publish(new AppExitMessage());
-                e.Handled = true;
-            }
-        };
-        
-        // Remove subscription from constructor
-        // SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
+                var games = GridViewInner.ItemsSource as List<Galgame>;
 
-        this.Loaded += async (s, e) =>
-        {
-             // Subscribe on Load
-             SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
-             SimpleEventBus.Instance.Subscribe<SortChangedMessage>(OnSortChanged);
-
-             if (_isFirstLoad)
-             {
-                 await System.Threading.Tasks.Task.Delay(100);
-                 
-                 _dispatcherQueue.TryEnqueue(() => 
-                 {
-                     if (this.XamlRoot != null && games.Count > 0)
-                     {
-                         if (initialSelection != null && games.Contains(initialSelection))
-                         {
-                             this.SelectedItem = initialSelection;
-                             this.ScrollIntoView(initialSelection);
-                         }
-                         else if (this.SelectedIndex < 0)
-                         {
-                             this.SelectedIndex = 0;
-                         }
-                         
-                         var targetItem = this.SelectedItem;
-                         if (targetItem != null)
-                         {
-                            var container = this.ContainerFromItem(targetItem) as Control;
-                            container?.Focus(FocusState.Programmatic);
-                         }
-                     }
-                     if (this.XamlRoot != null) PublishHints();
-                 });
-                 _isFirstLoad = false;
-             }
-            else
-            {
-                // On subsequent loads (returning from Detail), just ensure focus is restored to the selected item if lost
-                _dispatcherQueue.TryEnqueue(() =>
+                // Try to restore selection
+                if (games != null && _initialSelection != null && games.Contains(_initialSelection))
                 {
-                    if (XamlRoot != null)
-                    {
-                        var targetItem = SelectedItem;
-                        if (targetItem != null)
-                        {
-                            var container = ContainerFromItem(targetItem) as Control;
-                            container?.Focus(FocusState.Programmatic);
-                        }
-                        PublishHints();
-                    }
-                });
-            }
-        };
+                    GridViewInner.SelectedItem = _initialSelection;
+                    GridViewInner.ScrollIntoView(_initialSelection);
+                }
+                else if (GridViewInner.SelectedIndex < 0)
+                {
+                    GridViewInner.SelectedIndex = 0;
+                }
 
-        Unloaded += (s, e) =>
-        {
-            SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
-            SimpleEventBus.Instance.Unsubscribe<SortChangedMessage>(OnSortChanged);
-        };
+                FocusDefaultElement();
+            }
+        });
     }
 
     private void OnSortChanged(SortChangedMessage msg)
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
-            var selected = SelectedItem as Galgame;
-            var games = ItemsSource as List<Galgame>;
+            var selected = GridViewInner.SelectedItem as Galgame;
+            var games = GridViewInner.ItemsSource as List<Galgame>;
             if (games == null) return;
 
-            if (msg.Type == SortType.LastPlayTime)
-            {
-                if (msg.Ascending) games.Sort((a, b) => a.LastPlayTime.CompareTo(b.LastPlayTime));
-                else games.Sort((a, b) => b.LastPlayTime.CompareTo(a.LastPlayTime));
-            }
-            else // AddTime
-            {
-                if (msg.Ascending) games.Sort((a, b) => a.AddTime.CompareTo(b.AddTime));
-                else games.Sort((a, b) => b.AddTime.CompareTo(a.AddTime));
-            }
+            SortGames(games, msg.Type, msg.Ascending);
 
             // Refresh View
-            ItemsSource = null;
-            ItemsSource = games;
+            GridViewInner.ItemsSource = null;
+            GridViewInner.ItemsSource = games;
 
             if (selected != null)
             {
-                SelectedItem = selected;
-                ScrollIntoView(selected);
-
-                // Refocus
-                var container = ContainerFromItem(selected) as Control;
-                container?.Focus(FocusState.Programmatic);
+                GridViewInner.SelectedItem = selected;
+                GridViewInner.ScrollIntoView(selected);
+                FocusDefaultElement();
             }
         });
     }
+
     private void SyncSelectionToFocus(DependencyObject? originalSource)
     {
         var item = originalSource;
-        while (item != null && !(item is GridViewItem) && item != this)
+        while (item != null && !(item is GridViewItem) && item != GridViewInner)
         {
             item = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(item);
         }
 
         if (item is GridViewItem container && container.Content is Galgame g)
         {
-            SelectedItem = g;
+            GridViewInner.SelectedItem = g;
         }
     }
 
-    private void OnGamepadInput(GamepadInputMessage msg)
+    public override void OnGamepadInput(GamepadButton button)
     {
-        _dispatcherQueue.TryEnqueue(async () =>
+        switch (button)
         {
-            // Only act if this view is effectively active (in visual tree)
-            if (XamlRoot == null) return;
-
-            try
-            {
-                switch (msg.Button)
+            case GamepadButton.A:
+                if (GridViewInner.SelectedItem is Galgame g)
                 {
-                    case GamepadButton.A:
-                        if (SelectedItem is Galgame g)
-                        {
-                            SimpleEventBus.Instance.Publish(new NavigateToDetailMessage(g));
-                        }
-                        else if (Items.Count > 0)
-                        {
-                            SelectedIndex = 0;
-                            if (SelectedItem is Galgame first)
-                                SimpleEventBus.Instance.Publish(new NavigateToDetailMessage(first));
-                        }
-                        break;
-                    case GamepadButton.B:
-                        SimpleEventBus.Instance.Publish(new AppExitMessage());
-                        break;
-                    case GamepadButton.Up:
-                        await MoveFocus(Microsoft.UI.Xaml.Input.FocusNavigationDirection.Up);
-                        break;
-                    case GamepadButton.Down:
-                        await MoveFocus(Microsoft.UI.Xaml.Input.FocusNavigationDirection.Down);
-                        break;
-                    case GamepadButton.Left:
-                        await MoveFocus(Microsoft.UI.Xaml.Input.FocusNavigationDirection.Left);
-                        break;
-                    case GamepadButton.Right:
-                        await MoveFocus(Microsoft.UI.Xaml.Input.FocusNavigationDirection.Right);
-                        break;
+                    SimpleEventBus.Instance.Publish(new NavigateToDetailMessage(g));
                 }
-            }
-            catch { }
-        });
-    }
+                break;
+            case GamepadButton.B:
+                SimpleEventBus.Instance.Publish(new AppExitMessage());
+                break;
 
-    private async System.Threading.Tasks.Task MoveFocus(Microsoft.UI.Xaml.Input.FocusNavigationDirection direction)
-    {
-        if (XamlRoot?.Content is DependencyObject root)
-        {
-            var options = new Microsoft.UI.Xaml.Input.FindNextElementOptions { SearchRoot = root };
-            await Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocusAsync(direction, options);
+            case GamepadButton.Up:
+                MoveVerticalFocus(FocusNavigationDirection.Up);
+                break;
+            case GamepadButton.Down:
+                MoveVerticalFocus(FocusNavigationDirection.Down);
+                break;
+            case GamepadButton.Left:
+                if (GridViewInner.SelectedIndex > 0)
+                {
+                    MoveSelection(-1);
+                }
+                break;
+            case GamepadButton.Right:
+                if (GridViewInner.Items.Count > 0 && GridViewInner.SelectedIndex < GridViewInner.Items.Count - 1)
+                {
+                    MoveSelection(1);
+                }
+                break;
         }
     }
 
-    public void PublishHints()
+    private void MoveVerticalFocus(FocusNavigationDirection direction)
+    {
+        // 1. Try local move within GridViewInner (handles dynamic columns natively)
+        var options = new FindNextElementOptions
+        {
+            SearchRoot = GridViewInner,
+            XYFocusNavigationStrategyOverride = XYFocusNavigationStrategyOverride.Projection
+        };
+
+        var moved = FocusManager.TryMoveFocus(direction, options);
+
+        // 2. If local move failed (boundary), try global move to escape (e.g. to Header)
+        if (!moved && this.XamlRoot?.Content is DependencyObject root)
+        {
+            options.SearchRoot = root;
+            FocusManager.TryMoveFocus(direction, options);
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        int nextIndex = GridViewInner.SelectedIndex + delta;
+        if (nextIndex >= 0 && nextIndex < GridViewInner.Items.Count)
+        {
+            GridViewInner.SelectedIndex = nextIndex;
+            GridViewInner.ScrollIntoView(GridViewInner.SelectedItem);
+            FocusDefaultElement();
+        }
+    }
+
+    public override void PublishHints()
     {
         SimpleEventBus.Instance.Publish(new UpdateHintsMessage(new List<HintAction>
         {
