@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Threading.Tasks;
 using GalgameManager.Models;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
@@ -8,10 +12,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Services;
-using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -69,7 +69,7 @@ public partial class BigScreenPage : Grid
         _navService = new BigScreenNavigationService(_contentArea, ViewFactory);
 
         // Catch lost focus
-        this.GotFocus += (s, e) =>
+        GotFocus += (s, e) =>
         {
             if (e.OriginalSource == this)
             {
@@ -82,6 +82,7 @@ public partial class BigScreenPage : Grid
         SimpleEventBus.Instance.Subscribe<NavigateToLibraryMessage>(OnNavigateToLibrary);
         SimpleEventBus.Instance.Subscribe<AppExitMessage>(OnAppExit);
         SimpleEventBus.Instance.Subscribe<LaunchGameMessage>(OnLaunchGame);
+        SimpleEventBus.Instance.Subscribe<UnhandledGamepadInputMessage>(OnUnhandledInput);
 
         // Initial View
         _navService.NavigateTo(ViewKey.Library, _lastSelectedGame);
@@ -92,6 +93,7 @@ public partial class BigScreenPage : Grid
             SimpleEventBus.Instance.Unsubscribe<NavigateToLibraryMessage>(OnNavigateToLibrary);
             SimpleEventBus.Instance.Unsubscribe<AppExitMessage>(OnAppExit);
             SimpleEventBus.Instance.Unsubscribe<LaunchGameMessage>(OnLaunchGame);
+            SimpleEventBus.Instance.Unsubscribe<UnhandledGamepadInputMessage>(OnUnhandledInput);
 
             // Do NOT stop GamepadService here, as the main window might still need it.
             // GamepadService.Instance.Stop(); 
@@ -168,6 +170,17 @@ public partial class BigScreenPage : Grid
         {
             System.Diagnostics.Debug.WriteLine($"Launching Game: {msg.Game.Name.Value}");
             // Here you would call the actual game launch service
+        });
+    }
+
+    private void OnUnhandledInput(UnhandledGamepadInputMessage msg)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (msg.Button == GamepadButton.Up)
+            {
+                _header.FocusDefaultElement();
+            }
         });
     }
 }

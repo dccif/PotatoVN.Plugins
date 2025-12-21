@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using GalgameManager.Models;
 using Microsoft.UI.Xaml;
@@ -61,10 +60,10 @@ public class GameLibraryView : BigScreenViewBase
             }
         };
 
-        this.Content = GridViewInner;
+        Content = GridViewInner;
 
-        this.Loaded += (s, e) => SimpleEventBus.Instance.Subscribe<SortChangedMessage>(OnSortChanged);
-        this.Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<SortChangedMessage>(OnSortChanged);
+        Loaded += (s, e) => SimpleEventBus.Instance.Subscribe<SortChangedMessage>(OnSortChanged);
+        Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<SortChangedMessage>(OnSortChanged);
     }
 
     private void SortGames(List<Galgame> games, SortType sortType, bool ascending)
@@ -180,10 +179,10 @@ public class GameLibraryView : BigScreenViewBase
                 break;
 
             case GamepadButton.Up:
-                MoveVerticalFocus(FocusNavigationDirection.Up);
+                MoveVerticalFocus(FocusNavigationDirection.Up, button);
                 break;
             case GamepadButton.Down:
-                MoveVerticalFocus(FocusNavigationDirection.Down);
+                MoveVerticalFocus(FocusNavigationDirection.Down, button);
                 break;
             case GamepadButton.Left:
                 if (GridViewInner.SelectedIndex > 0)
@@ -200,7 +199,7 @@ public class GameLibraryView : BigScreenViewBase
         }
     }
 
-    private void MoveVerticalFocus(FocusNavigationDirection direction)
+    private void MoveVerticalFocus(FocusNavigationDirection direction, GamepadButton originalButton)
     {
         // 1. Try local move within GridViewInner (handles dynamic columns natively)
         var options = new FindNextElementOptions
@@ -212,10 +211,15 @@ public class GameLibraryView : BigScreenViewBase
         var moved = FocusManager.TryMoveFocus(direction, options);
 
         // 2. If local move failed (boundary), try global move to escape (e.g. to Header)
-        if (!moved && this.XamlRoot?.Content is DependencyObject root)
+        if (!moved && XamlRoot?.Content is DependencyObject root)
         {
             options.SearchRoot = root;
-            FocusManager.TryMoveFocus(direction, options);
+            moved = FocusManager.TryMoveFocus(direction, options);
+        }
+
+        if (!moved)
+        {
+            SimpleEventBus.Instance.Publish(new UnhandledGamepadInputMessage(originalButton));
         }
     }
 

@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Services;
-using System;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -21,15 +20,15 @@ public abstract class BigScreenViewBase : UserControl, IBigScreenView
 
     protected BigScreenViewBase()
     {
-        this.Loaded += (s, e) =>
+        Loaded += (s, e) =>
         {
             SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(HandleInternalInput);
-            this.GotFocus += (s, e) =>
+            GotFocus += (s, e) =>
             {
                 if (IsActiveElement(e.OriginalSource)) PublishHints();
             };
         };
-        this.Unloaded += (s, e) =>
+        Unloaded += (s, e) =>
         {
             SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(HandleInternalInput);
         };
@@ -45,5 +44,5 @@ public abstract class BigScreenViewBase : UserControl, IBigScreenView
     public abstract void PublishHints();
     public abstract void OnGamepadInput(GamepadButton button);
 
-    public virtual void FocusDefaultElement() => this.Focus(FocusState.Programmatic);
+    public virtual void FocusDefaultElement() => Focus(FocusState.Programmatic);
 }

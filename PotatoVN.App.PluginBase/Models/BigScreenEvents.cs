@@ -22,5 +22,6 @@ public record NavigateToLibraryMessage();
 public record GoBackMessage();
 
 // Actions
+public record UnhandledGamepadInputMessage(GamepadButton Button);
 public record LaunchGameMessage(Galgame Game);
 public record AppExitMessage();

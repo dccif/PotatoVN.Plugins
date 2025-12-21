@@ -89,7 +89,7 @@ public class DetailView : BigScreenViewBase
         stack.Children.Add(new TextBlock { Text = game.Description.Value, FontSize = 18, Foreground = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)), TextWrapping = TextWrapping.Wrap, MaxHeight = 200, TextTrimming = TextTrimming.CharacterEllipsis });
 
         rootGrid.Children.Add(stack);
-        this.Content = rootGrid;
+        Content = rootGrid;
     }
 
     public override void OnNavigatedTo(object? parameter)

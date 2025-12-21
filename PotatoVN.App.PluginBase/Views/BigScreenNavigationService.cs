@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using PotatoVN.App.PluginBase.Models; // For Galgame
-using GalgameManager.Models; // For Galgame type if it's in a different namespace, checking usages
 
 namespace PotatoVN.App.PluginBase.Views;
 
