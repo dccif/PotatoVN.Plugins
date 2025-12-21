@@ -16,6 +16,7 @@ namespace PotatoVN.App.PluginBase;
 public partial class Plugin : IPlugin, IPluginSetting
 {
     private IPotatoVnApi _hostApi = null!;
+    internal static IPotatoVnApi? HostApi { get; private set; }
     private PluginData _data = new();
     private static ResourceManager? _resourceManager;
     private static CultureInfo? _pluginCulture;
@@ -42,6 +43,7 @@ public partial class Plugin : IPlugin, IPluginSetting
     public async Task InitializeAsync(IPotatoVnApi hostApi)
     {
         _hostApi = hostApi;
+        HostApi = hostApi;
         XamlResourceLocatorFactory.packagePath = _hostApi.GetPluginPath();
         var dataJson = await _hostApi.GetDataAsync();
         if (!string.IsNullOrWhiteSpace(dataJson))

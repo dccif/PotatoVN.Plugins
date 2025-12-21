@@ -1,10 +1,17 @@
-using System.Collections.Generic;
+using GalgameManager.Enums;
 using GalgameManager.Models;
+using GalgameManager.WinApp.Base.Contracts.NavigationApi;
+using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
+using HarmonyLib;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Services;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -76,13 +83,38 @@ public class BigScreenPage : Grid
         };
     }
 
-    private void OnNavigateToDetail(NavigateToDetailMessage msg)
+    private async void OnNavigateToDetail(NavigateToDetailMessage msg)
     {
         _lastSelectedGame = msg.Game;
         _dispatcherQueue.TryEnqueue(() =>
         {
             _contentArea.Content = new DetailView(msg.Game);
         });
+
+        if (Plugin.HostApi != null)
+        {
+            try
+            {
+                var assembly = Assembly.Load("GalgameManager");
+                var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
+                var invokeMethod = AccessTools.Method(helperType, "InvokeAsync", new[] { typeof(Action) });
+
+                if (invokeMethod != null)
+                {
+#pragma warning disable CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
+#pragma warning disable CS8602 // 解引用可能出现空引用。
+                    await (Task)invokeMethod.Invoke(null, [ new Action(() =>
+                           Plugin.HostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = msg.Game, StartGame = false })
+                    ) ]);
+#pragma warning restore CS8602 // 解引用可能出现空引用。
+#pragma warning restore CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BigScreen] Nav Sync Error: {ex}");
+            }
+        }
     }
 
     private void OnNavigateToLibrary(NavigateToLibraryMessage msg)
