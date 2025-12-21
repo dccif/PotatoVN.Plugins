@@ -6,15 +6,24 @@ using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Windowing;
-using Microsoft.Web.WebView2.Core;
 using GalgameManager.Models;
-using Windows.Storage.Streams;
-using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace PotatoVN.App.PluginBase.Views;
 
 public class BigScreenWindow : Window
 {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
     private readonly List<Galgame> _games;
     private readonly string _webAssetsPath;
     private WebView2 _webView;
@@ -27,6 +36,25 @@ public class BigScreenWindow : Window
         var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
         var appWindow = AppWindow.GetFromWindowId(windowId);
+
+        // Move to the screen where the cursor is (User clicked the button there)
+        try
+        {
+            if (GetCursorPos(out POINT lpPoint))
+            {
+                var displayArea = DisplayArea.GetFromPoint(
+                    new Windows.Graphics.PointInt32(lpPoint.X, lpPoint.Y), 
+                    DisplayAreaFallback.Primary);
+                
+                if (displayArea != null)
+                {
+                    // Move window to that display first
+                    appWindow.Move(new Windows.Graphics.PointInt32(displayArea.WorkArea.X + 100, displayArea.WorkArea.Y + 100));
+                }
+            }
+        }
+        catch {}
+
         appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
         
         var rootGrid = new Grid();
@@ -145,6 +173,9 @@ public class BigScreenWindow : Window
             
             // 5. Navigate (HTTPS)
             core.Navigate("https://potato.local/index.html");
+            
+            // 6. Force Focus to WebView to ensure Gamepad/Keyboard events are captured immediately
+            _webView.Focus(FocusState.Programmatic);
         }
         catch (Exception ex)
         {

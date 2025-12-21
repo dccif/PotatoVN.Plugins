@@ -1,4 +1,4 @@
-import { createSignal, onMount, onCleanup, For } from 'solid-js';
+import { createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 
 interface Game {
   id: string;
@@ -15,6 +15,7 @@ declare global {
 
 function App() {
   const [games, setGames] = createSignal<Game[]>([]);
+  const [hasInteracted, setHasInteracted] = createSignal(false);
   let gridRef: HTMLDivElement | undefined;
   let lastInputTime = 0;
   let animationFrameId: number;
@@ -22,31 +23,54 @@ function App() {
   onMount(() => {
     if (window.potatoData) {
       setGames(window.potatoData);
-      // Auto-focus first card after render
-      setTimeout(() => {
-        const firstCard = gridRef?.querySelector('.card') as HTMLElement;
-        firstCard?.focus();
-      }, 100);
     }
-
+    
+    // Auto-start polling, but interaction is needed for actual gamepad data usually
     startGamepadPolling();
+    
+    // Log console to C#
+    const oldLog = console.log;
+    console.log = (...args) => {
+        oldLog(...args);
+        window.chrome?.webview?.postMessage(JSON.stringify({ type: 'log', message: args.join(' ') }));
+    };
   });
 
   onCleanup(() => {
     cancelAnimationFrame(animationFrameId);
   });
 
+  const handleInteraction = () => {
+    if (!hasInteracted()) {
+      setHasInteracted(true);
+      // Focus first card
+      setTimeout(() => {
+        const first = gridRef?.querySelector('.card') as HTMLElement;
+        first?.focus();
+      }, 50);
+    }
+  };
+
   const startGamepadPolling = () => {
     const poll = () => {
       const now = performance.now();
-      // Poll every frame, but limit input rate (e.g., every 150ms for navigation)
       if (now - lastInputTime > 150) {
         const gamepads = navigator.getGamepads();
-        // Use the first active gamepad
-        const gp = gamepads[0] || gamepads[1] || gamepads[2] || gamepads[3];
-
-        if (gp) {
-          handleGamepadInput(gp, now);
+        // Check ALL slots
+        for (const gp of gamepads) {
+          if (gp) {
+            // If any button pressed or axis moved, trigger interaction state
+            if (!hasInteracted()) {
+                const anyButton = gp.buttons.some(b => b.pressed);
+                const anyAxis = gp.axes.some(a => Math.abs(a) > 0.2);
+                if (anyButton || anyAxis) handleInteraction();
+            }
+            
+            if (hasInteracted()) {
+                handleGamepadInput(gp, now);
+                break; // Only process one gamepad
+            }
+          }
         }
       }
       animationFrameId = requestAnimationFrame(poll);
@@ -57,24 +81,22 @@ function App() {
   const handleGamepadInput = (gp: Gamepad, time: number) => {
     const threshold = 0.5;
     
-    // Axes: 0=LeftStickX, 1=LeftStickY. Buttons: 12=Up, 13=Down, 14=Left, 15=Right
-    // A=0, B=1
-    
     const left = gp.axes[0] < -threshold || gp.buttons[14]?.pressed;
     const right = gp.axes[0] > threshold || gp.buttons[15]?.pressed;
     const up = gp.axes[1] < -threshold || gp.buttons[12]?.pressed;
     const down = gp.axes[1] > threshold || gp.buttons[13]?.pressed;
+    
     const accept = gp.buttons[0]?.pressed; // A / Cross
     const back = gp.buttons[1]?.pressed;   // B / Circle
 
     if (left || right || up || down) {
-      moveFocus(left, right, up, down);
+      moveFocusGeometric(left, right, up, down);
       lastInputTime = time;
     } else if (accept) {
       const active = document.activeElement as HTMLElement;
       if (active && active.classList.contains('card')) {
         active.click();
-        lastInputTime = time + 300; // Longer debounce for actions
+        lastInputTime = time + 300;
       }
     } else if (back) {
       handleExit();
@@ -82,50 +104,56 @@ function App() {
     }
   };
 
-  const moveFocus = (left: boolean, right: boolean, up: boolean, down: boolean) => {
+  const moveFocusGeometric = (left: boolean, right: boolean, up: boolean, down: boolean) => {
     if (!gridRef) return;
-    
     const cards = Array.from(gridRef.querySelectorAll('.card')) as HTMLElement[];
-    if (cards.length === 0) return;
-
-    const activeIndex = cards.indexOf(document.activeElement as HTMLElement);
-    if (activeIndex === -1) {
-      cards[0].focus();
-      return;
-    }
-
-    // Calculate columns based on visual layout
-    // We assume cards are roughly same width.
-    const containerWidth = gridRef.clientWidth;
-    const cardWidth = cards[0].getBoundingClientRect().width;
-    // Get gap from computed style if possible, or estimate. 
-    // Grid gap is 20px. Card width approx 200px (minmax).
-    // Better way: compare 'top' coordinates.
+    const active = document.activeElement as HTMLElement;
     
-    // Simple estimation:
-    const columns = Math.floor(containerWidth / (cardWidth + 20)); // 20 is gap roughly
-    // Or more robustly: find how many have the same offsetTop as the first one
-    let cols = 1;
-    const firstTop = cards[0].offsetTop;
-    for(let i=1; i<cards.length; i++) {
-        if (cards[i].offsetTop === firstTop) cols++;
-        else break;
+    if (!active || !cards.includes(active)) {
+        cards[0]?.focus();
+        return;
     }
 
-    let nextIndex = activeIndex;
+    const currentRect = active.getBoundingClientRect();
+    const currentCenter = { 
+        x: currentRect.left + currentRect.width / 2, 
+        y: currentRect.top + currentRect.height / 2 
+    };
 
-    if (left) nextIndex = activeIndex - 1;
-    if (right) nextIndex = activeIndex + 1;
-    if (up) nextIndex = activeIndex - cols;
-    if (down) nextIndex = activeIndex + cols;
+    let bestCandidate: HTMLElement | null = null;
+    let minDistance = Infinity;
 
-    // Boundary checks
-    if (nextIndex < 0) nextIndex = 0;
-    if (nextIndex >= cards.length) nextIndex = cards.length - 1;
+    // Filter candidates based on direction
+    const candidates = cards.filter(card => {
+        if (card === active) return false;
+        const rect = card.getBoundingClientRect();
+        const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        
+        const dx = center.x - currentCenter.x;
+        const dy = center.y - currentCenter.y;
 
-    if (nextIndex !== activeIndex) {
-      cards[nextIndex].focus();
-      cards[nextIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (left) return dx < -10 && Math.abs(dy) < rect.height / 2; // Roughly same row
+        if (right) return dx > 10 && Math.abs(dy) < rect.height / 2;
+        if (up) return dy < -10; // Strictly above
+        if (down) return dy > 10; // Strictly below
+        return false;
+    });
+
+    // Find closest based on Euclidean distance
+    candidates.forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        const dist = Math.pow(center.x - currentCenter.x, 2) + Math.pow(center.y - currentCenter.y, 2);
+        
+        if (dist < minDistance) {
+            minDistance = dist;
+            bestCandidate = card;
+        }
+    });
+
+    if (bestCandidate) {
+        (bestCandidate as HTMLElement).focus();
+        (bestCandidate as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
@@ -133,14 +161,26 @@ function App() {
   const handleLaunch = (id: string) => window.chrome?.webview?.postMessage({ type: 'launch', id });
 
   return (
-    <div style={{ height: '100vh', display: 'flex', "flex-direction": 'column' }}>
+    <div style={{ height: '100vh', display: 'flex', "flex-direction": 'column', "user-select": 'none' }} onClick={handleInteraction} onKeyDown={handleInteraction}>
+      <Show when={!hasInteracted()}>
+        <div style={{
+            position: 'fixed', inset: 0, "z-index": 9999,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', "flex-direction": 'column', "justify-content": 'center', "align-items": 'center',
+            color: 'white', "font-family": 'Segoe UI', "font-weight": 300
+        }}>
+            <h1 style={{"font-size": '48px', "margin-bottom": '20px'}}>PRESS ANY BUTTON</h1>
+            <p style={{"font-size": '24px', opacity: 0.8}}>Gamepad or Keyboard or Mouse</p>
+        </div>
+      </Show>
+
       <header style={{ padding: '20px 40px', display: 'flex', "align-items": 'center', background: 'rgba(0,0,0,0.8)', "z-index": 100, "backdrop-filter": 'blur(10px)' }}>
         <button onClick={handleExit} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '8px 16px', "margin-right": '20px', cursor: 'pointer' }}>EXIT (B)</button>
         <h1 style={{ margin: 0, "font-size": '24px', "font-weight": 300, "text-transform": 'uppercase' }}>Library</h1>
       </header>
       <div style={{ padding: '80px 40px 20px', "overflow-y": 'auto', flex: 1 }}>
         <div ref={gridRef} style={{ display: 'grid', "grid-template-columns": 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
-          <For each={games()} fallback={<div style={{color:'#aaa'}}>Loading...</div>}>
+          <For each={games()}>
             {(game) => (
               <div 
                 class="card"
