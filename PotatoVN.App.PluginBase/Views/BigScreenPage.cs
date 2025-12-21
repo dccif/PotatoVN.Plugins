@@ -14,12 +14,13 @@ using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public class BigScreenPage : Grid
+public partial class BigScreenPage : Grid
 {
     private readonly Window _parentWindow;
     private readonly List<Galgame> _games;
     private readonly ContentControl _contentArea;
     private readonly Footer _footer;
+    private readonly Header _header;
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
     private Galgame? _lastSelectedGame;
     private GameLibraryView? _libraryView;
@@ -43,9 +44,9 @@ public class BigScreenPage : Grid
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Footer
 
         // Header
-        var header = new Header();
-        Children.Add(header);
-        Grid.SetRow(header, 0);
+        _header = new Header();
+        Children.Add(_header);
+        Grid.SetRow(_header, 0);
 
         // Content Area
         _contentArea = new ContentControl

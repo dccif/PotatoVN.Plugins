@@ -10,7 +10,7 @@ using Windows.UI;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public class Footer : Grid
+public partial class Footer : Grid
 {
     private readonly StackPanel _hintsPanel;
     private readonly DispatcherQueue _dispatcherQueue;
@@ -18,8 +18,8 @@ public class Footer : Grid
     public Footer()
     {
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
-        this.Padding = new Thickness(60, 10, 60, 15);
-        this.Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
+        Padding = new Thickness(60, 10, 60, 15);
+        Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
 
         _hintsPanel = new StackPanel
         {
