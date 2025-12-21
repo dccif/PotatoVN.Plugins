@@ -159,4 +159,7 @@
   <data name="BigScreen_PlayTime" xml:space="preserve">
     <value>PLAY TIME</value>
   </data>
+  <data name="EnteringBigScreen" xml:space="preserve">
+    <value>Entering Big Screen Mode...</value>
+  </data>
 </root>

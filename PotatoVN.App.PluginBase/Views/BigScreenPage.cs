@@ -1,4 +1,3 @@
-using GalgameManager.Enums;
 using GalgameManager.Models;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
@@ -25,11 +24,12 @@ public class BigScreenPage : Grid
     private Galgame? _lastSelectedGame;
     private GameLibraryView? _libraryView;
 
-    public BigScreenPage(Window parentWindow, List<Galgame> games)
+    public BigScreenPage(Window parentWindow, List<Galgame> games, Galgame? initialGame = null)
     {
         _parentWindow = parentWindow;
         _games = games;
         _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        _lastSelectedGame = initialGame;
 
         // Ensure Service is running
         GamepadService.Instance.Start();
@@ -97,17 +97,17 @@ public class BigScreenPage : Grid
             {
                 var assembly = Assembly.Load("GalgameManager");
                 var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
-                var invokeMethod = AccessTools.Method(helperType, "InvokeAsync", new[] { typeof(Action) });
+                var invokeMethod = AccessTools.Method(helperType, "InvokeAsync", [typeof(Action)]);
 
                 if (invokeMethod != null)
                 {
-#pragma warning disable CS8600 // ½« null ×ÖÃæÁ¿»ò¿ÉÄÜÎª null µÄÖµ×ª»»Îª·Ç null ÀàĞÍ¡£
-#pragma warning disable CS8602 // ½âÒıÓÃ¿ÉÄÜ³öÏÖ¿ÕÒıÓÃ¡£
+#pragma warning disable CS8600 // å°† null å­—é¢é‡æˆ–å¯èƒ½ä¸º null çš„å€¼è½¬æ¢ä¸ºé null ç±»å‹ã€‚
+#pragma warning disable CS8602 // è§£å¼•ç”¨å¯èƒ½å‡ºç°ç©ºå¼•ç”¨ã€‚
                     await (Task)invokeMethod.Invoke(null, [ new Action(() =>
                            Plugin.HostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = msg.Game, StartGame = false })
                     ) ]);
-#pragma warning restore CS8602 // ½âÒıÓÃ¿ÉÄÜ³öÏÖ¿ÕÒıÓÃ¡£
-#pragma warning restore CS8600 // ½« null ×ÖÃæÁ¿»ò¿ÉÄÜÎª null µÄÖµ×ª»»Îª·Ç null ÀàĞÍ¡£
+#pragma warning restore CS8602 // è§£å¼•ç”¨å¯èƒ½å‡ºç°ç©ºå¼•ç”¨ã€‚
+#pragma warning restore CS8600 // å°† null å­—é¢é‡æˆ–å¯èƒ½ä¸º null çš„å€¼è½¬æ¢ä¸ºé null ç±»å‹ã€‚
                 }
             }
             catch (Exception ex)
@@ -146,7 +146,7 @@ public class BigScreenPage : Grid
     {
         if (_libraryView == null)
         {
-            _libraryView = new GameLibraryView(_games);
+            _libraryView = new GameLibraryView(_games, _lastSelectedGame);
         }
         _contentArea.Content = _libraryView;
     }

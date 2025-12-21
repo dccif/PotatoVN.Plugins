@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Windowing;
@@ -8,7 +9,7 @@ namespace PotatoVN.App.PluginBase.Views;
 
 public class BigScreenWindow : Window
 {
-    // PInvoke definitions for cursor position
+    // PInvoke definitions
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {
@@ -20,17 +21,33 @@ public class BigScreenWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetCursorPos(out POINT lpPoint);
 
-    public BigScreenWindow(List<Galgame> games)
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    private const int GWL_STYLE = -16;
+    private const int WS_CAPTION = 0x00C00000;
+    private const int WS_THICKFRAME = 0x00040000;
+    private const int WS_SYSMENU = 0x00080000;
+    private const int WS_MINIMIZEBOX = 0x00020000;
+    private const int WS_MAXIMIZEBOX = 0x00010000;
+
+    private const uint SWP_FRAMECHANGED = 0x0020;
+    private const uint SWP_SHOWWINDOW = 0x0040;
+    private static readonly IntPtr HWND_TOP = new IntPtr(0);
+
+    public BigScreenWindow(List<Galgame> games, Galgame? initialGame = null)
     {
-        // 1. 设置全屏逻辑 (定位到当前鼠标所在屏幕)
+        // 1. 设置内容
+        Content = new BigScreenPage(this, games, initialGame);
+
+        // 2. 设置全屏逻辑 (手动移除边框并定位)
         PositionWindowOnCurrentMonitor();
-
-        // 2. 设置内容为纯 C# 构建的 Page
-        // 传入 'this' 以便 Page 可以控制窗口关闭
-        Content = new BigScreenPage(this, games);
-
-        // 3. 隐藏标题栏 (可选，但在全屏模式下通常由 SetPresenter 处理)
-        ExtendsContentIntoTitleBar = true;
     }
 
     private void PositionWindowOnCurrentMonitor()
@@ -41,6 +58,13 @@ public class BigScreenWindow : Window
 
         try
         {
+            // 1. Ensure we are in a basic state (Overlapped)
+            if (appWindow.Presenter.Kind != AppWindowPresenterKind.Overlapped)
+            {
+                appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
+            }
+
+            // 2. Identify the target monitor
             if (GetCursorPos(out POINT lpPoint))
             {
                 var displayArea = DisplayArea.GetFromPoint(
@@ -49,13 +73,35 @@ public class BigScreenWindow : Window
 
                 if (displayArea != null)
                 {
-                    // 移动到目标屏幕的原点
-                    appWindow.Move(new Windows.Graphics.PointInt32(displayArea.OuterBounds.X, displayArea.OuterBounds.Y));
+                    // 3. Remove standard Window styles (TitleBar, Borders) via P/Invoke
+                    // This is more reliable than AppWindow for true borderless behavior
+                    int style = GetWindowLong(hWnd, GWL_STYLE);
+                    style &= ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+                    SetWindowLong(hWnd, GWL_STYLE, style);
+
+                    // 4. Force position and size to cover the entire monitor (OuterBounds)
+                    // SWP_FRAMECHANGED tells the OS to recalculate the client area (removing the chrome)
+                    SetWindowPos(hWnd, HWND_TOP,
+                        displayArea.OuterBounds.X,
+                        displayArea.OuterBounds.Y,
+                        displayArea.OuterBounds.Width,
+                        displayArea.OuterBounds.Height,
+                        SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+
+                    // Optional: Ensure AppWindow thinks it's borderless too, though P/Invoke overrides it usually
+                    if (appWindow.Presenter is OverlappedPresenter op)
+                    {
+                        op.SetBorderAndTitleBar(false, false);
+                        op.IsResizable = false;
+                    }
                 }
             }
         }
-        catch { }
-
-        appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FullScreen Error: {ex}");
+            // Fallback
+            appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+        }
     }
 }

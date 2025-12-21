@@ -159,4 +159,7 @@
   <data name="BigScreen_PlayTime" xml:space="preserve">
     <value>游玩时间</value>
   </data>
+  <data name="EnteringBigScreen" xml:space="preserve">
+    <value>进入大屏模式中...</value>
+  </data>
 </root>

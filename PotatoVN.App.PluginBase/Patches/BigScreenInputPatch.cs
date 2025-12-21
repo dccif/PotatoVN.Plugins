@@ -19,7 +19,8 @@ public static class BigScreenInputPatch
     {
         "GalgameManager.Views.HomePage",
         "GalgameManager.Views.CategoryPage",
-        "GalgameManager.Views.MultiStreamPage"
+        "GalgameManager.Views.MultiStreamPage",
+        "GalgameManager.Views.HomeDetailPage"
     };
 
     public static void Apply(Harmony harmony)
@@ -62,7 +63,7 @@ public static class BigScreenInputPatch
 public static class BigScreenActionHandler
 {
     private static Page? _activePage;
-    private static Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
+    private static DispatcherQueue? _dispatcher;
 
     public static void Attach(Page page)
     {
@@ -71,7 +72,7 @@ public static class BigScreenActionHandler
         if (_activePage != null) Detach(_activePage);
 
         _activePage = page;
-        _dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        _dispatcher = DispatcherQueue.GetForCurrentThread();
 
         GamepadService.Instance.Start();
         SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
@@ -155,8 +156,27 @@ public static class BigScreenActionHandler
 
             // 3. Fetch Data (All Games) via Service Locator Reflection
             List<GalgameManager.Models.Galgame> games = new();
+            GalgameManager.Models.Galgame? initialGame = null;
             try
             {
+                // Attempt to get initial game if on Detail Page
+                if (page.GetType().FullName == "GalgameManager.Views.HomeDetailPage")
+                {
+                    var vmProp = page.GetType().GetProperty("ViewModel");
+                    if (vmProp != null)
+                    {
+                        var vm = vmProp.GetValue(page);
+                        if (vm != null)
+                        {
+                            var itemProp = vm.GetType().GetProperty("Item");
+                            if (itemProp != null)
+                            {
+                                initialGame = itemProp.GetValue(vm) as GalgameManager.Models.Galgame;
+                            }
+                        }
+                    }
+                }
+
                 var appType = Application.Current.GetType();
                 var getServiceMethod = appType.GetMethod("GetService");
 
@@ -195,7 +215,7 @@ public static class BigScreenActionHandler
             popup.IsOpen = false;
             page.XamlRoot.Changed -= sizeChangedHandler;
 
-            var window = new BigScreenWindow(games);
+            var window = new BigScreenWindow(games, initialGame);
             window.Activate();
 
             window.Closed += (s, e) =>

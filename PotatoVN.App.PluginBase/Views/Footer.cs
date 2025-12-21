@@ -13,11 +13,11 @@ namespace PotatoVN.App.PluginBase.Views;
 public class Footer : Grid
 {
     private readonly StackPanel _hintsPanel;
-    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
+    private readonly DispatcherQueue _dispatcherQueue;
 
     public Footer()
     {
-        _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         Padding = new Thickness(60, 20, 60, 40);
         Background = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0));
 

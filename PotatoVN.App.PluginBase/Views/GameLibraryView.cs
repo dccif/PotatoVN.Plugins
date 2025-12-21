@@ -12,35 +12,36 @@ namespace PotatoVN.App.PluginBase.Views;
 public class GameLibraryView : GridView
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
+    private bool _isFirstLoad = true;
 
     public GameLibraryView(List<Galgame> games, Galgame? initialSelection = null)
     {
         _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        ItemsSource = games;
-        ItemTemplate = GameItemTemplate.GetTemplate();
-        SelectionMode = ListViewSelectionMode.Single;
-        IsItemClickEnabled = true;
-        Padding = new Thickness(60, 20, 60, 40);
-        HorizontalAlignment = HorizontalAlignment.Center;
-        XYFocusKeyboardNavigation = Microsoft.UI.Xaml.Input.XYFocusKeyboardNavigationMode.Enabled;
-        IsTabStop = true;
+        this.ItemsSource = games;
+        this.ItemTemplate = GameItemTemplate.GetTemplate();
+        this.SelectionMode = ListViewSelectionMode.Single;
+        this.IsItemClickEnabled = true;
+        this.Padding = new Thickness(60, 20, 60, 40);
+        this.HorizontalAlignment = HorizontalAlignment.Center;
+        this.XYFocusKeyboardNavigation = Microsoft.UI.Xaml.Input.XYFocusKeyboardNavigationMode.Enabled;
+        this.IsTabStop = true;
 
-        GotFocus += (s, e) =>
+        this.GotFocus += (s, e) => 
         {
             PublishHints();
             SyncSelectionToFocus(e.OriginalSource as DependencyObject);
         };
-
-        ItemClick += (s, e) =>
+        
+        this.ItemClick += (s, e) =>
         {
             if (e.ClickedItem is Galgame g)
             {
                 SimpleEventBus.Instance.Publish(new NavigateToDetailMessage(g));
             }
         };
-
+        
         // Backup KeyDown handler
-        KeyDown += (s, e) =>
+        this.KeyDown += (s, e) =>
         {
             if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
             {
@@ -48,43 +49,64 @@ public class GameLibraryView : GridView
                 e.Handled = true;
             }
         };
-
+        
         // Remove subscription from constructor
         // SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
 
-        Loaded += async (s, e) =>
+        this.Loaded += async (s, e) =>
         {
-            // Subscribe on Load
-            SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
+             // Subscribe on Load
+             SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
 
-            await System.Threading.Tasks.Task.Delay(100);
-
-            _dispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (XamlRoot != null && games.Count > 0)
-                        {
-                            if (initialSelection != null && games.Contains(initialSelection))
-                            {
-                                SelectedItem = initialSelection;
-                                ScrollIntoView(initialSelection);
-                            }
-                            else if (SelectedIndex < 0)
-                            {
-                                SelectedIndex = 0;
-                            }
-
-                            var targetItem = SelectedItem;
-                            if (targetItem != null)
-                            {
-                                var container = ContainerFromItem(targetItem) as Control;
-                                container?.Focus(FocusState.Programmatic);
-                            }
-                        }
-                        if (XamlRoot != null) PublishHints();
-                    });
+             if (_isFirstLoad)
+             {
+                 await System.Threading.Tasks.Task.Delay(100);
+                 
+                 _dispatcherQueue.TryEnqueue(() => 
+                 {
+                     if (this.XamlRoot != null && games.Count > 0)
+                     {
+                         if (initialSelection != null && games.Contains(initialSelection))
+                         {
+                             this.SelectedItem = initialSelection;
+                             this.ScrollIntoView(initialSelection);
+                         }
+                         else if (this.SelectedIndex < 0)
+                         {
+                             this.SelectedIndex = 0;
+                         }
+                         
+                         var targetItem = this.SelectedItem;
+                         if (targetItem != null)
+                         {
+                            var container = this.ContainerFromItem(targetItem) as Control;
+                            container?.Focus(FocusState.Programmatic);
+                         }
+                     }
+                     if (this.XamlRoot != null) PublishHints();
+                 });
+                 _isFirstLoad = false;
+             }
+             else
+             {
+                 // On subsequent loads (returning from Detail), just ensure focus is restored to the selected item if lost
+                 _dispatcherQueue.TryEnqueue(() =>
+                 {
+                     if (this.XamlRoot != null)
+                     {
+                         var targetItem = this.SelectedItem;
+                         if (targetItem != null)
+                         {
+                            var container = this.ContainerFromItem(targetItem) as Control;
+                            container?.Focus(FocusState.Programmatic);
+                         }
+                         PublishHints();
+                     }
+                 });
+             }
         };
 
-        Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
+        this.Unloaded += (s, e) => SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
     }
     private void SyncSelectionToFocus(DependencyObject? originalSource)
     {
