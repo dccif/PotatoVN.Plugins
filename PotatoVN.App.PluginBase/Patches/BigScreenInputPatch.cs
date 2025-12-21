@@ -9,6 +9,7 @@ using System.Collections;
 using Microsoft.UI.Xaml;
 using System.Threading.Tasks;
 using Windows.Foundation;
+using PotatoVN.App.PluginBase.Models;
 
 namespace PotatoVN.App.PluginBase.Patches;
 
@@ -43,7 +44,7 @@ public static class BigScreenInputPatch
 
     public static void OnNavigatedToPostfix(object __instance)
     {
-        if (__instance is Page page && _targetPageNames.Contains(page.GetType().FullName))
+        if (__instance is Page page && _targetPageNames.Contains(page.GetType().FullName!))
         {
             BigScreenActionHandler.Attach(page);
         }
@@ -51,7 +52,7 @@ public static class BigScreenInputPatch
 
     public static void OnNavigatedFromPostfix(object __instance)
     {
-        if (__instance is Page page && _targetPageNames.Contains(page.GetType().FullName))
+        if (__instance is Page page && _targetPageNames.Contains(page.GetType().FullName!))
         {
             BigScreenActionHandler.Detach(page);
         }
@@ -61,7 +62,7 @@ public static class BigScreenInputPatch
 public static class BigScreenActionHandler
 {
     private static Page? _activePage;
-    private static DispatcherQueue? _dispatcher;
+    private static Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
 
     public static void Attach(Page page)
     {
@@ -70,24 +71,26 @@ public static class BigScreenActionHandler
         if (_activePage != null) Detach(_activePage);
 
         _activePage = page;
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
+        _dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
-        GamepadService.Instance.GuideButtonPressed += OnGuideButton;
+        GamepadService.Instance.Start();
+        SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
     }
 
     public static void Detach(Page page)
     {
         if (_activePage == page)
         {
-            GamepadService.Instance.GuideButtonPressed -= OnGuideButton;
+            SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
+            GamepadService.Instance.Stop();
             _activePage = null;
             _dispatcher = null;
         }
     }
 
-    private static void OnGuideButton()
+    private static void OnGamepadInput(GamepadInputMessage msg)
     {
-        if (_activePage != null && _dispatcher != null)
+        if (msg.Button == GamepadButton.Guide && _activePage != null && _dispatcher != null)
         {
             _dispatcher.TryEnqueue(() => OpenBigScreen(_activePage));
         }
@@ -98,7 +101,7 @@ public static class BigScreenActionHandler
         try
         {
             // Detach to prevent multiple triggers
-            GamepadService.Instance.GuideButtonPressed -= OnGuideButton;
+            SimpleEventBus.Instance.Unsubscribe<GamepadInputMessage>(OnGamepadInput);
 
             // 1. Show Loading UI
             var popup = new Microsoft.UI.Xaml.Controls.Primitives.Popup
@@ -199,7 +202,7 @@ public static class BigScreenActionHandler
             {
                 if (_activePage == page)
                 {
-                    GamepadService.Instance.GuideButtonPressed += OnGuideButton;
+                    SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
                 }
             };
         }
@@ -209,7 +212,7 @@ public static class BigScreenActionHandler
             // Restore handlers
             if (_activePage == page)
             {
-                GamepadService.Instance.GuideButtonPressed += OnGuideButton;
+                SimpleEventBus.Instance.Subscribe<GamepadInputMessage>(OnGamepadInput);
             }
         }
     }

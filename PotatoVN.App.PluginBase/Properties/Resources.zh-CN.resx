@@ -132,7 +132,31 @@
   <data name="BigScreenDesc" xml:space="preserve">
     <value>进入大屏沉浸式体验</value>
   </data>
-  <data name="EnteringBigScreen" xml:space="preserve">
-    <value>正在进入大屏模式...</value>
+  <data name="BigScreen_Select" xml:space="preserve">
+    <value>选择</value>
+  </data>
+  <data name="BigScreen_Back" xml:space="preserve">
+    <value>返回</value>
+  </data>
+  <data name="BigScreen_Launch" xml:space="preserve">
+    <value>启动</value>
+  </data>
+  <data name="BigScreen_Exit" xml:space="preserve">
+    <value>退出</value>
+  </data>
+  <data name="BigScreen_Play" xml:space="preserve">
+    <value>开始游戏</value>
+  </data>
+  <data name="BigScreen_Developer" xml:space="preserve">
+    <value>开发商</value>
+  </data>
+  <data name="BigScreen_Rating" xml:space="preserve">
+    <value>评分</value>
+  </data>
+  <data name="BigScreen_Release" xml:space="preserve">
+    <value>发行日期</value>
+  </data>
+  <data name="BigScreen_PlayTime" xml:space="preserve">
+    <value>游玩时间</value>
   </data>
 </root>

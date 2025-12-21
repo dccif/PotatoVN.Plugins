@@ -27,10 +27,10 @@ public class BigScreenWindow : Window
 
         // 2. 设置内容为纯 C# 构建的 Page
         // 传入 'this' 以便 Page 可以控制窗口关闭
-        this.Content = new BigScreenPage(this, games);
+        Content = new BigScreenPage(this, games);
 
         // 3. 隐藏标题栏 (可选，但在全屏模式下通常由 SetPresenter 处理)
-        this.ExtendsContentIntoTitleBar = true;
+        ExtendsContentIntoTitleBar = true;
     }
 
     private void PositionWindowOnCurrentMonitor()

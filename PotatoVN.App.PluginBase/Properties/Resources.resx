@@ -132,7 +132,31 @@
   <data name="BigScreenDesc" xml:space="preserve">
     <value>Enter Big Screen Mode</value>
   </data>
-  <data name="EnteringBigScreen" xml:space="preserve">
-    <value>Entering Big Screen Mode...</value>
+  <data name="BigScreen_Select" xml:space="preserve">
+    <value>SELECT</value>
+  </data>
+  <data name="BigScreen_Back" xml:space="preserve">
+    <value>BACK</value>
+  </data>
+  <data name="BigScreen_Launch" xml:space="preserve">
+    <value>LAUNCH</value>
+  </data>
+  <data name="BigScreen_Exit" xml:space="preserve">
+    <value>EXIT</value>
+  </data>
+  <data name="BigScreen_Play" xml:space="preserve">
+    <value>PLAY</value>
+  </data>
+  <data name="BigScreen_Developer" xml:space="preserve">
+    <value>DEVELOPER</value>
+  </data>
+  <data name="BigScreen_Rating" xml:space="preserve">
+    <value>RATING</value>
+  </data>
+  <data name="BigScreen_Release" xml:space="preserve">
+    <value>RELEASE</value>
+  </data>
+  <data name="BigScreen_PlayTime" xml:space="preserve">
+    <value>PLAY TIME</value>
   </data>
 </root>

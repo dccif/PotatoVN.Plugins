@@ -132,7 +132,31 @@
   <data name="BigScreenDesc" xml:space="preserve">
     <value>大画面モードに入ります</value>
   </data>
-  <data name="EnteringBigScreen" xml:space="preserve">
-    <value>大画面モードに移行中...</value>
+  <data name="BigScreen_Select" xml:space="preserve">
+    <value>選択</value>
+  </data>
+  <data name="BigScreen_Back" xml:space="preserve">
+    <value>戻る</value>
+  </data>
+  <data name="BigScreen_Launch" xml:space="preserve">
+    <value>起動</value>
+  </data>
+  <data name="BigScreen_Exit" xml:space="preserve">
+    <value>終了</value>
+  </data>
+  <data name="BigScreen_Play" xml:space="preserve">
+    <value>プレイ</value>
+  </data>
+  <data name="BigScreen_Developer" xml:space="preserve">
+    <value>開発元</value>
+  </data>
+  <data name="BigScreen_Rating" xml:space="preserve">
+    <value>評価</value>
+  </data>
+  <data name="BigScreen_Release" xml:space="preserve">
+    <value>リリース日</value>
+  </data>
+  <data name="BigScreen_PlayTime" xml:space="preserve">
+    <value>プレイ時間</value>
   </data>
 </root>
