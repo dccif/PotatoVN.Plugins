@@ -17,8 +17,8 @@ public partial class Plugin
         bigScreenBtn.Click += (_, _) =>
         {
             var games = _hostApi.GetAllGames();
-            var pluginPath = _hostApi.GetPluginPath();
-            var window = new Views.BigScreenWindow(games, pluginPath);
+            // Removed pluginPath as we are now using pure C# UI
+            var window = new Views.BigScreenWindow(games);
             window.Activate();
         };
         panel.Children.Add(new StdSetting(GetLocalized("BigScreenTitle") ?? "Big Screen", 
