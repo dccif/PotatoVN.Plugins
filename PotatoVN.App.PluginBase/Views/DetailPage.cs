@@ -9,6 +9,7 @@ using Microsoft.UI;
 using Windows.UI;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -16,7 +17,6 @@ public sealed class DetailPage : Page, IBigScreenPage
 {
     public DetailViewModel? ViewModel { get; private set; }
     private Button _playBtn;
-    private Button _backBtn;
     private BigScreenFooter _footer;
 
     public DetailPage(Galgame game)
@@ -113,15 +113,6 @@ public sealed class DetailPage : Page, IBigScreenPage
         };
         btnStack.Children.Add(_playBtn);
 
-        _backBtn = new Button
-        {
-            Content = "BACK",
-            FontSize = 24,
-            Padding = new Thickness(60, 15, 60, 15),
-            CornerRadius = new CornerRadius(4)
-        };
-        btnStack.Children.Add(_backBtn);
-
         contentStack.Children.Add(btnStack);
 
         // Description
@@ -162,7 +153,7 @@ public sealed class DetailPage : Page, IBigScreenPage
             contentContainer.DataContext = ViewModel;
             
             _playBtn.Command = ViewModel.PlayCommand;
-            _backBtn.Command = ViewModel.BackCommand;
+            _playBtn.IsEnabled = IsPlayable(ViewModel.Game);
             
              // Initial Focus
             _playBtn.Focus(FocusState.Programmatic);
@@ -212,5 +203,11 @@ public sealed class DetailPage : Page, IBigScreenPage
     public void RequestFocus()
     {
         _playBtn.Focus(FocusState.Programmatic);
+    }
+
+    private static bool IsPlayable(Galgame game)
+    {
+        if (string.IsNullOrWhiteSpace(game.ExePath)) return false;
+        return File.Exists(game.ExePath);
     }
 }

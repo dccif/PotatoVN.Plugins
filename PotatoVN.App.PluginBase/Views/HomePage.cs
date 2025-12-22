@@ -10,6 +10,10 @@ using System;
 using PotatoVN.App.PluginBase.Views.Controls;
 using Windows.UI;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using System.Numerics;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -23,6 +27,17 @@ public sealed class HomePage : Page, IBigScreenPage
     private BigScreenFooter _footer;
     private ScrollViewer _mainScroll;
     private ScrollViewer _recentScroll;
+    private Canvas _libraryOverlayCanvas;
+    private Border? _libraryOverlayCard;
+    private Image? _libraryOverlayImage;
+    private TextBlock? _libraryOverlayTitle;
+    private GridViewItem? _overlayItem;
+    private ScaleTransform? _overlayScale;
+    private ItemsWrapGrid? _libraryItemsPanel;
+
+    private const double LibraryCardWidth = 160;
+    private const double LibraryCardMargin = 6;
+    private const double LibraryAspect = 1.5;
 
     private Control? _lastFocusedControl;
 
@@ -42,7 +57,17 @@ public sealed class HomePage : Page, IBigScreenPage
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             IsTabStop = false // Important: Don't take focus
         };
-        scaffold.Body = _mainScroll;
+
+        _libraryOverlayCanvas = new Canvas
+        {
+            IsHitTestVisible = false
+        };
+        Canvas.SetZIndex(_libraryOverlayCanvas, 100);
+
+        var bodyGrid = new Grid();
+        bodyGrid.Children.Add(_mainScroll);
+        bodyGrid.Children.Add(_libraryOverlayCanvas);
+        scaffold.Body = bodyGrid;
 
         var contentStack = new StackPanel { Padding = new Thickness(0, 20, 0, 40) };
         _mainScroll.Content = contentStack;
@@ -98,11 +123,12 @@ public sealed class HomePage : Page, IBigScreenPage
             XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled,
             XYFocusUpNavigationStrategy = XYFocusNavigationStrategy.Projection
         };
+        _libraryGridView.ItemContainerStyle = BuildLibraryItemContainerStyle();
         contentStack.Children.Add(_libraryGridView);
 
         string libraryTemplate = @"
 <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-    <Grid Width='160' Height='240' Margin='6' Background='#2d3440' CornerRadius='6'>
+    <Grid MinWidth='160' MinHeight='240' Margin='6' Background='#2d3440' CornerRadius='6'>
         <Grid.RowDefinitions>
             <RowDefinition Height='*' />
             <RowDefinition Height='Auto' />
@@ -159,6 +185,7 @@ public sealed class HomePage : Page, IBigScreenPage
         {
             if (e.ItemContainer is GridViewItem item)
             {
+                AttachLibraryItemOverlay(item);
                 item.KeyDown -= OnLibraryItemKeyDown;
                 item.KeyDown += OnLibraryItemKeyDown;
                 if (_recentListPanel.Children.Count > 0)
@@ -167,6 +194,14 @@ public sealed class HomePage : Page, IBigScreenPage
                 }
             }
         };
+        _libraryGridView.Loaded += (s, e) => UpdateLibraryItemSize();
+        _libraryGridView.SizeChanged += (s, e) => UpdateLibraryItemSize();
+        _mainScroll.ViewChanged += (s, e) => UpdateLibraryOverlayPosition();
+        bodyGrid.SizeChanged += (s, e) => UpdateLibraryOverlayPosition();
+        if (XamlRoot != null)
+        {
+            XamlRoot.Changed += (s, e) => UpdateLibraryItemSize();
+        }
         
         // Auto-center library items vertically
         _libraryGridView.GotFocus += (s, e) =>
@@ -312,6 +347,305 @@ public sealed class HomePage : Page, IBigScreenPage
                 e.Handled = true;
             }
         }
+    }
+
+    private void AttachLibraryItemOverlay(GridViewItem item)
+    {
+        item.UseSystemFocusVisuals = false;
+        item.GotFocus -= OnLibraryItemGotFocus;
+        item.GotFocus += OnLibraryItemGotFocus;
+        item.LostFocus -= OnLibraryItemLostFocus;
+        item.LostFocus += OnLibraryItemLostFocus;
+        item.Unloaded -= OnLibraryItemUnloaded;
+        item.Unloaded += OnLibraryItemUnloaded;
+    }
+
+    private void OnLibraryItemGotFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is GridViewItem item)
+        {
+            ShowLibraryOverlay(item);
+            item.LayoutUpdated -= OnLibraryItemLayoutUpdated;
+            item.LayoutUpdated += OnLibraryItemLayoutUpdated;
+        }
+    }
+
+    private void OnLibraryItemLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is GridViewItem item && _overlayItem == item)
+        {
+            item.LayoutUpdated -= OnLibraryItemLayoutUpdated;
+            HideLibraryOverlay();
+        }
+    }
+
+    private void OnLibraryItemUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is GridViewItem item)
+        {
+            item.GotFocus -= OnLibraryItemGotFocus;
+            item.LostFocus -= OnLibraryItemLostFocus;
+            item.Unloaded -= OnLibraryItemUnloaded;
+            item.LayoutUpdated -= OnLibraryItemLayoutUpdated;
+            if (_overlayItem == item)
+            {
+                HideLibraryOverlay();
+            }
+        }
+    }
+
+    private void OnLibraryItemLayoutUpdated(object? sender, object e)
+    {
+        UpdateLibraryOverlayPosition();
+        if (sender is GridViewItem item && _overlayItem == item && _libraryOverlayImage?.Source == null)
+        {
+            ApplyOverlayFromItem(item);
+        }
+    }
+
+    private void EnsureLibraryOverlay()
+    {
+        if (_libraryOverlayCard != null) return;
+
+        _overlayScale = new ScaleTransform { ScaleX = 1.0, ScaleY = 1.0 };
+        _libraryOverlayCard = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 45, 52, 64)),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(6),
+            BorderBrush = new SolidColorBrush(Colors.White),
+            Shadow = new ThemeShadow(),
+            RenderTransform = _overlayScale,
+            RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+            IsHitTestVisible = false
+        };
+
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var image = new Image
+        {
+            Stretch = Stretch.UniformToFill,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        grid.Children.Add(image);
+        _libraryOverlayImage = image;
+
+        var overlay = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Height = 60 };
+        overlay.Background = new LinearGradientBrush
+        {
+            StartPoint = new Windows.Foundation.Point(0.5, 0),
+            EndPoint = new Windows.Foundation.Point(0.5, 1),
+            GradientStops =
+            {
+                new GradientStop { Color = Color.FromArgb(0, 0, 0, 0), Offset = 0 },
+                new GradientStop { Color = Color.FromArgb(204, 0, 0, 0), Offset = 1 }
+            }
+        };
+        Grid.SetRow(overlay, 0);
+        Grid.SetRowSpan(overlay, 2);
+        grid.Children.Add(overlay);
+
+        var title = new TextBlock
+        {
+            Foreground = new SolidColorBrush(Colors.White),
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.Medium,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap,
+            Margin = new Thickness(8, 0, 8, 8),
+            VerticalAlignment = VerticalAlignment.Bottom
+        };
+        Grid.SetRow(title, 1);
+        grid.Children.Add(title);
+        _libraryOverlayTitle = title;
+
+        _libraryOverlayCard.Child = grid;
+        _libraryOverlayCanvas.Children.Add(_libraryOverlayCard);
+    }
+
+    private void ShowLibraryOverlay(GridViewItem item)
+    {
+        EnsureLibraryOverlay();
+        _overlayItem = item;
+        ApplyOverlayFromItem(item);
+
+        UpdateLibraryOverlayPosition();
+        _libraryOverlayCard.Translation = new Vector3(0, -14, 30);
+        AnimateOverlayScale(1.25);
+    }
+
+    private void HideLibraryOverlay()
+    {
+        _overlayItem = null;
+        if (_libraryOverlayCard != null)
+        {
+            _libraryOverlayCard.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateLibraryOverlayPosition()
+    {
+        if (_overlayItem == null || _libraryOverlayCard == null) return;
+
+        var root = _libraryOverlayCanvas as UIElement;
+        if (root == null) return;
+
+        try
+        {
+            var transform = _overlayItem.TransformToVisual(root);
+            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, _overlayItem.ActualWidth, _overlayItem.ActualHeight));
+
+            _libraryOverlayCard.Width = rect.Width;
+            _libraryOverlayCard.Height = rect.Height;
+            Canvas.SetLeft(_libraryOverlayCard, rect.X);
+            Canvas.SetTop(_libraryOverlayCard, rect.Y);
+            _libraryOverlayCard.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+        }
+    }
+
+    private void AnimateOverlayScale(double scale)
+    {
+        if (_overlayScale == null) return;
+
+        var sb = new Storyboard();
+        var animX = new DoubleAnimation
+        {
+            To = scale,
+            Duration = TimeSpan.FromMilliseconds(150),
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(animX, _overlayScale);
+        Storyboard.SetTargetProperty(animX, "ScaleX");
+        sb.Children.Add(animX);
+
+        var animY = new DoubleAnimation
+        {
+            To = scale,
+            Duration = TimeSpan.FromMilliseconds(150),
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(animY, _overlayScale);
+        Storyboard.SetTargetProperty(animY, "ScaleY");
+        sb.Children.Add(animY);
+
+        sb.Begin();
+    }
+
+    private void ApplyOverlayFromItem(GridViewItem item)
+    {
+        if (_libraryOverlayImage == null || _libraryOverlayTitle == null) return;
+
+        var image = FindDescendant<Image>(item);
+        if (image?.Source != null)
+        {
+            _libraryOverlayImage.Source = image.Source;
+        }
+        else if (item.DataContext is Galgame game)
+        {
+            _libraryOverlayImage.Source = CreateImageSource(game.ImagePath.Value);
+        }
+        else
+        {
+            _libraryOverlayImage.Source = null;
+        }
+
+        if (item.DataContext is Galgame g)
+        {
+            _libraryOverlayTitle.Text = g.Name.Value;
+        }
+        else
+        {
+            var title = FindDescendant<TextBlock>(item);
+            _libraryOverlayTitle.Text = title?.Text ?? string.Empty;
+        }
+    }
+
+    private static ImageSource? CreateImageSource(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        try
+        {
+            return new BitmapImage(ToImageUri(path));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Uri ToImageUri(string path)
+    {
+        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute))
+        {
+            return absolute;
+        }
+
+        var fullPath = path.Replace("\\", "/");
+        return new Uri($"file:///{fullPath}", UriKind.Absolute);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            var descendant = FindDescendant<T>(child);
+            if (descendant != null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    private void UpdateLibraryItemSize()
+    {
+        if (_libraryItemsPanel == null)
+        {
+            _libraryItemsPanel = _libraryGridView.ItemsPanelRoot as ItemsWrapGrid;
+            if (_libraryItemsPanel == null) return;
+        }
+
+        var availableWidth = _libraryGridView.ActualWidth;
+        if (availableWidth <= 0)
+        {
+            availableWidth = XamlRoot?.Size.Width ?? 0;
+        }
+        if (availableWidth <= 0) return;
+
+        var padding = _libraryGridView.Padding.Left + _libraryGridView.Padding.Right;
+        availableWidth = Math.Max(0, availableWidth - padding);
+        if (availableWidth <= 0) return;
+
+        var slotMin = LibraryCardWidth + (LibraryCardMargin * 2);
+        var columns = Math.Max(1, (int)Math.Floor(availableWidth / slotMin));
+        var slotWidth = availableWidth / columns;
+        var contentWidth = Math.Max(1, slotWidth - (LibraryCardMargin * 2));
+        var contentHeight = contentWidth * LibraryAspect;
+
+        _libraryItemsPanel.ItemWidth = slotWidth;
+        _libraryItemsPanel.ItemHeight = contentHeight + (LibraryCardMargin * 2);
+    }
+
+    private static Style BuildLibraryItemContainerStyle()
+    {
+        var style = new Style(typeof(GridViewItem));
+        style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+        style.Setters.Add(new Setter(Control.VerticalContentAlignmentProperty, VerticalAlignment.Stretch));
+        return style;
     }
 
     private bool FocusNearestLibraryItem(FrameworkElement source)
