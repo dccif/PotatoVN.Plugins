@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using GalgameManager.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using PotatoVN.App.PluginBase.Messages;
 using System.Collections.Generic;
 using System;
@@ -10,6 +11,13 @@ using HarmonyLib;
 using System.Threading.Tasks;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi;
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Automation.Provider;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using System.Threading;
+using Windows.Gaming.Input;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -22,11 +30,23 @@ public sealed partial class BigScreenPage : Page
     
     private readonly List<Galgame> _games;
     private readonly Window _parentWindow;
+    private readonly DispatcherQueue _dispatcher;
+    private CancellationTokenSource? _gamepadCts;
+    private GamepadButtons _previousButtons;
+    private bool _previousUp;
+    private bool _previousDown;
+    private bool _previousLeft;
+    private bool _previousRight;
+    private DateTime _lastSystemGamepadInputUtc;
+
+    private const double ThumbThreshold = 0.5;
+    private const int SystemGamepadSuppressMs = 250;
 
     public BigScreenPage(Window parentWindow, List<Galgame> games, Galgame? initialGame = null)
     {
         _parentWindow = parentWindow;
         _games = games;
+        _dispatcher = DispatcherQueue.GetForCurrentThread();
 
         // UI Construction: Two Layers
         _rootGrid = new Grid();
@@ -80,12 +100,18 @@ public sealed partial class BigScreenPage : Page
             {
                 _navigator.Navigate(BigScreenRoute.Detail, initialGame, BigScreenNavMode.Overlay);
             }
+
+            StartGamepadPolling();
         };
         
-        Unloaded += (s, e) => WeakReferenceMessenger.Default.UnregisterAll(this);
+        Unloaded += (s, e) =>
+        {
+            WeakReferenceMessenger.Default.UnregisterAll(this);
+            StopGamepadPolling();
+        };
         
-        // Handle Back navigation
-        this.KeyDown += BigScreenPage_KeyDown;
+        // Handle input even if controls mark it handled, to keep footer hints in sync.
+        AddHandler(KeyDownEvent, new KeyEventHandler(BigScreenPage_KeyDown), true);
     }
 
     public void RequestFocus()
@@ -95,24 +121,254 @@ public sealed partial class BigScreenPage : Page
 
     private void BigScreenPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
+        var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA
+            && e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
+        if (isGamepad)
+        {
+            _lastSystemGamepadInputUtc = DateTime.UtcNow;
+        }
+        InputManager.ReportInput(isGamepad ? InputDeviceType.Gamepad : InputDeviceType.Keyboard);
+
+        if (!e.Handled && (e.Key == Windows.System.VirtualKey.GamepadA || e.Key == Windows.System.VirtualKey.Enter))
+        {
+            InvokeFocusedElement();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
         {
-            if (_navigator.IsOverlayOpen)
+            HandleBackNavigation();
+            e.Handled = true;
+        }
+    }
+
+    private void StartGamepadPolling()
+    {
+        StopGamepadPolling();
+        _gamepadCts = new CancellationTokenSource();
+        _ = Task.Run(() => PollGamepad(_gamepadCts.Token));
+    }
+
+    private void StopGamepadPolling()
+    {
+        _gamepadCts?.Cancel();
+        _gamepadCts = null;
+    }
+
+    private async Task PollGamepad(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+
+        try
+        {
+            while (!token.IsCancellationRequested && await timer.WaitForNextTickAsync(token))
             {
-                _navigator.CloseOverlay();
-                e.Handled = true;
-            }
-            else if (_navigator.CanGoBack)
-            {
-                _navigator.GoBack();
-                e.Handled = true;
-            }
-            else
-            {
-                 _parentWindow.Close();
-                 e.Handled = true;
+                var gamepad = Gamepad.Gamepads.Count > 0 ? Gamepad.Gamepads[0] : null;
+                if (gamepad == null) continue;
+
+                var reading = gamepad.GetCurrentReading();
+                var buttons = reading.Buttons;
+
+                if ((DateTime.UtcNow - _lastSystemGamepadInputUtc).TotalMilliseconds < SystemGamepadSuppressMs)
+                {
+                    _previousButtons = buttons;
+                    _previousUp = ((buttons & GamepadButtons.DPadUp) != 0) || reading.LeftThumbstickY > ThumbThreshold;
+                    _previousDown = ((buttons & GamepadButtons.DPadDown) != 0) || reading.LeftThumbstickY < -ThumbThreshold;
+                    _previousLeft = ((buttons & GamepadButtons.DPadLeft) != 0) || reading.LeftThumbstickX < -ThumbThreshold;
+                    _previousRight = ((buttons & GamepadButtons.DPadRight) != 0) || reading.LeftThumbstickX > ThumbThreshold;
+                    continue;
+                }
+
+                bool up = ((buttons & GamepadButtons.DPadUp) != 0) || reading.LeftThumbstickY > ThumbThreshold;
+                bool down = ((buttons & GamepadButtons.DPadDown) != 0) || reading.LeftThumbstickY < -ThumbThreshold;
+                bool left = ((buttons & GamepadButtons.DPadLeft) != 0) || reading.LeftThumbstickX < -ThumbThreshold;
+                bool right = ((buttons & GamepadButtons.DPadRight) != 0) || reading.LeftThumbstickX > ThumbThreshold;
+
+                bool anyInput = false;
+
+                if (up && !_previousUp)
+                {
+                    anyInput = true;
+                    EnqueueMoveFocus(FocusNavigationDirection.Up);
+                }
+                if (down && !_previousDown)
+                {
+                    anyInput = true;
+                    EnqueueMoveFocus(FocusNavigationDirection.Down);
+                }
+                if (left && !_previousLeft)
+                {
+                    anyInput = true;
+                    EnqueueMoveFocus(FocusNavigationDirection.Left);
+                }
+                if (right && !_previousRight)
+                {
+                    anyInput = true;
+                    EnqueueMoveFocus(FocusNavigationDirection.Right);
+                }
+
+                bool pressA = (buttons & GamepadButtons.A) != 0 && (_previousButtons & GamepadButtons.A) == 0;
+                if (pressA)
+                {
+                    anyInput = true;
+                    EnqueueInvokeFocused();
+                }
+
+                bool pressB = (buttons & GamepadButtons.B) != 0 && (_previousButtons & GamepadButtons.B) == 0;
+                if (pressB)
+                {
+                    anyInput = true;
+                    EnqueueBack();
+                }
+
+                if (anyInput)
+                {
+                    _dispatcher.TryEnqueue(() => InputManager.ReportInput(InputDeviceType.Gamepad));
+                }
+
+                _previousButtons = buttons;
+                _previousUp = up;
+                _previousDown = down;
+                _previousLeft = left;
+                _previousRight = right;
             }
         }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void EnqueueMoveFocus(FocusNavigationDirection direction)
+    {
+        _dispatcher.TryEnqueue(() =>
+        {
+            var root = GetFocusSearchRoot();
+            if (root == null) return;
+
+            try
+            {
+                var options = new FindNextElementOptions { SearchRoot = root };
+                if (!FocusManager.TryMoveFocus(direction, options))
+                {
+                    _navigator.RequestFocusActivePage();
+                    FocusManager.TryMoveFocus(direction, options);
+                }
+            }
+            catch
+            {
+                _navigator.RequestFocusActivePage();
+            }
+        });
+    }
+
+    private void EnqueueInvokeFocused()
+    {
+        _dispatcher.TryEnqueue(InvokeFocusedElement);
+    }
+
+    private void EnqueueBack()
+    {
+        _dispatcher.TryEnqueue(HandleBackNavigation);
+    }
+
+    private void HandleBackNavigation()
+    {
+        if (_navigator.IsOverlayOpen)
+        {
+            _navigator.CloseOverlay();
+        }
+        else if (_navigator.CanGoBack)
+        {
+            _navigator.GoBack();
+        }
+        else
+        {
+            _parentWindow.Close();
+        }
+    }
+
+    private void InvokeFocusedElement()
+    {
+        var focused = FocusManager.GetFocusedElement() as DependencyObject;
+        if (focused == null)
+        {
+            _navigator.RequestFocusActivePage();
+            focused = FocusManager.GetFocusedElement() as DependencyObject;
+            if (focused == null) return;
+        }
+
+        var button = FindAncestor<ButtonBase>(focused);
+        if (button != null)
+        {
+            InvokeViaAutomation(button);
+            return;
+        }
+
+        var gridItem = FindAncestor<GridViewItem>(focused);
+        if (gridItem != null)
+        {
+            if (gridItem.DataContext is Galgame game)
+            {
+                var page = FindAncestor<Page>(gridItem);
+                if (page is HomePage home && home.ViewModel != null)
+                {
+                    home.ViewModel.ItemClickCommand.Execute(game);
+                    return;
+                }
+            }
+
+            InvokeViaAutomation(gridItem);
+        }
+    }
+
+    private static void InvokeViaAutomation(FrameworkElement element)
+    {
+        var peer = FrameworkElementAutomationPeer.FromElement(element)
+            ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
+        if (peer == null) return;
+
+        if (peer.GetPattern(PatternInterface.Invoke) is IInvokeProvider invokeProvider)
+        {
+            invokeProvider.Invoke();
+            return;
+        }
+
+        if (peer.GetPattern(PatternInterface.SelectionItem) is ISelectionItemProvider selectionProvider)
+        {
+            selectionProvider.Select();
+        }
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? node) where T : DependencyObject
+    {
+        while (node != null)
+        {
+            if (node is T match) return match;
+            node = VisualTreeHelper.GetParent(node);
+        }
+
+        return null;
+    }
+
+    private DependencyObject? GetFocusSearchRoot()
+    {
+        DependencyObject? root = null;
+
+        if (_navigator.IsOverlayOpen)
+        {
+            root = _overlayLayer.Content as DependencyObject;
+        }
+
+        root ??= _mainLayer.Content as DependencyObject;
+        root ??= _rootGrid;
+
+        if (root is FrameworkElement element && !element.IsLoaded)
+        {
+            return null;
+        }
+
+        return root;
     }
     
     private async void SyncToHost(Galgame game)

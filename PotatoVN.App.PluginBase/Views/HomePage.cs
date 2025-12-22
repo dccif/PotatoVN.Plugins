@@ -190,10 +190,6 @@ public sealed class HomePage : Page, IBigScreenPage
                 AttachLibraryItemOverlay(item);
                 item.KeyDown -= OnLibraryItemKeyDown;
                 item.KeyDown += OnLibraryItemKeyDown;
-                if (_recentListPanel.Children.Count > 0)
-                {
-                    item.XYFocusUp = _recentListPanel;
-                }
             }
         };
         _libraryGridView.Loaded += (s, e) => UpdateLibraryItemSize();
@@ -827,7 +823,6 @@ public sealed class HomePage : Page, IBigScreenPage
         }
 
         _recentListPanel.XYFocusDown = _libraryGridView;
-        _libraryGridView.XYFocusUp = _recentListPanel;
 
         foreach (var child in _recentListPanel.Children)
         {
