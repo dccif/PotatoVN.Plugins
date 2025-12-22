@@ -60,6 +60,10 @@ public class BigScreenWindow : Window
             {
                 var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
                 SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                if (Content is BigScreenPage page)
+                {
+                    page.RequestFocus();
+                }
             }
         };
     }

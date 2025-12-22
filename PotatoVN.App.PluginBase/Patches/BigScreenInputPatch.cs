@@ -17,12 +17,12 @@ namespace PotatoVN.App.PluginBase.Patches;
 
 public static class BigScreenInputPatch
 {
-    private static readonly HashSet<string> _targetPageNames = new()
+    private static readonly HashSet<string> _targetPageTypeNames = new(StringComparer.Ordinal)
     {
-        "GalgameManager.Views.HomePage",
-        "GalgameManager.Views.CategoryPage",
-        "GalgameManager.Views.MultiStreamPage",
-        "GalgameManager.Views.HomeDetailPage"
+        "HomePage",
+        "CategoryPage",
+        "MultiStreamPage",
+        "HomeDetailPage"
     };
 
     public static void Apply(Harmony harmony)
@@ -38,6 +38,11 @@ public static class BigScreenInputPatch
             var onNavigatedFrom = AccessTools.Method(pageType, "OnNavigatedFrom");
             if (onNavigatedFrom != null)
                 harmony.Patch(onNavigatedFrom, postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnNavigatedFromPostfix)));
+
+            var frameType = typeof(Frame);
+            var onFrameNavigated = AccessTools.Method(frameType, "OnNavigated");
+            if (onFrameNavigated != null)
+                harmony.Patch(onFrameNavigated, postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnFrameNavigatedPostfix)));
         }
         catch (Exception ex)
         {
@@ -47,7 +52,7 @@ public static class BigScreenInputPatch
 
     public static void OnNavigatedToPostfix(object __instance)
     {
-        if (__instance is Page page && _targetPageNames.Contains(page.GetType().FullName!))
+        if (__instance is Page page && IsTargetPage(page))
         {
             BigScreenActionHandler.Attach(page);
         }
@@ -55,10 +60,31 @@ public static class BigScreenInputPatch
 
     public static void OnNavigatedFromPostfix(object __instance)
     {
-        if (__instance is Page page && _targetPageNames.Contains(page.GetType().FullName!))
+        if (__instance is Page page && IsTargetPage(page))
         {
             BigScreenActionHandler.Detach(page);
         }
+    }
+
+    public static void OnFrameNavigatedPostfix(object __instance)
+    {
+        if (__instance is not Frame frame) return;
+
+        if (frame.Content is Page page && IsTargetPage(page))
+        {
+            BigScreenActionHandler.Attach(page);
+        }
+        else
+        {
+            BigScreenActionHandler.DetachActive();
+        }
+    }
+
+    private static bool IsTargetPage(Page page)
+    {
+        if (page is IBigScreenPage) return false;
+        if (page.GetType().Assembly == typeof(BigScreenInputPatch).Assembly) return false;
+        return _targetPageTypeNames.Contains(page.GetType().Name);
     }
 }
 
@@ -68,6 +94,9 @@ public static class BigScreenActionHandler
     private static DispatcherQueue? _dispatcher;
     private static CancellationTokenSource? _cts;
     private static Task? _pollingTask;
+    private static KeyboardAccelerator? _f11Accelerator;
+    private static int _isOpening;
+    private static bool _xinputUnavailable;
 
     // XInput P/Invoke
     [StructLayout(LayoutKind.Sequential)]
@@ -107,6 +136,7 @@ public static class BigScreenActionHandler
         // 1. Keyboard Hook
         page.KeyDown -= Page_KeyDown;
         page.KeyDown += Page_KeyDown;
+        AttachF11Accelerator(page);
 
         // 2. Gamepad Polling
         _cts = new CancellationTokenSource();
@@ -119,12 +149,21 @@ public static class BigScreenActionHandler
         {
             // Stop Keyboard
             page.KeyDown -= Page_KeyDown;
+            DetachF11Accelerator(page);
 
             // Stop Gamepad
             _cts?.Cancel();
             
             _activePage = null;
             _dispatcher = null;
+        }
+    }
+
+    public static void DetachActive()
+    {
+        if (_activePage != null)
+        {
+            Detach(_activePage);
         }
     }
 
@@ -140,6 +179,33 @@ public static class BigScreenActionHandler
         }
     }
 
+    private static void AttachF11Accelerator(Page page)
+    {
+        DetachF11Accelerator(page);
+
+        _f11Accelerator = new KeyboardAccelerator { Key = Windows.System.VirtualKey.F11 };
+        _f11Accelerator.Invoked += F11Accelerator_Invoked;
+        page.KeyboardAccelerators.Add(_f11Accelerator);
+    }
+
+    private static void DetachF11Accelerator(Page page)
+    {
+        if (_f11Accelerator == null) return;
+
+        _f11Accelerator.Invoked -= F11Accelerator_Invoked;
+        page.KeyboardAccelerators.Remove(_f11Accelerator);
+        _f11Accelerator = null;
+    }
+
+    private static void F11Accelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_activePage != null)
+        {
+            _dispatcher?.TryEnqueue(() => OpenBigScreen(_activePage));
+            args.Handled = true;
+        }
+    }
+
     private static async Task PollingLoop()
     {
         var token = _cts!.Token;
@@ -148,10 +214,8 @@ public static class BigScreenActionHandler
 
         while (!token.IsCancellationRequested && await timer.WaitForNextTickAsync(token))
         {
-            if (XInputGetStateEx(0, out var state) == ERROR_SUCCESS)
+            if (TryGetGuidePressed(out var isPressed))
             {
-                bool isPressed = (state.Gamepad.wButtons & XINPUT_GAMEPAD_GUIDE) != 0;
-                
                 if (isPressed && !wasPressed)
                 {
                     _dispatcher?.TryEnqueue(() => 
@@ -164,8 +228,45 @@ public static class BigScreenActionHandler
         }
     }
 
+    private static bool TryGetGuidePressed(out bool isPressed)
+    {
+        isPressed = false;
+        if (_xinputUnavailable) return false;
+
+        bool hasState = false;
+        try
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (XInputGetStateEx(i, out var state) == ERROR_SUCCESS)
+                {
+                    hasState = true;
+                    if ((state.Gamepad.wButtons & XINPUT_GAMEPAD_GUIDE) != 0)
+                    {
+                        isPressed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        catch (DllNotFoundException)
+        {
+            _xinputUnavailable = true;
+            return false;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            _xinputUnavailable = true;
+            return false;
+        }
+
+        return hasState;
+    }
+
     private static async void OpenBigScreen(Page page)
     {
+        if (Interlocked.Exchange(ref _isOpening, 1) == 1) return;
+
         // Prevent re-entry
         Detach(page);
 
@@ -226,7 +327,7 @@ public static class BigScreenActionHandler
             try
             {
                 // Try get initial game
-                if (page.GetType().FullName == "GalgameManager.Views.HomeDetailPage")
+                if (page.GetType().Name == "HomeDetailPage")
                 {
                     var vmProp = page.GetType().GetProperty("ViewModel");
                     if (vmProp != null)
@@ -289,12 +390,14 @@ public static class BigScreenActionHandler
                  // Re-attach to the original page if still valid
                  // Note: 'page' might be dead if navigated away, but simple re-attach safe
                  Attach(page);
+                 Interlocked.Exchange(ref _isOpening, 0);
             };
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error opening Big Screen: {ex}");
             Attach(page); // Re-attach on failure
+            Interlocked.Exchange(ref _isOpening, 0);
         }
     }
 }

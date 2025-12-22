@@ -48,6 +48,20 @@ public sealed class BigScreenNavigator
     public bool CanGoBack => _backStack.Count > 0;
     public bool CanGoForward => _forwardStack.Count > 0;
 
+    public void RequestFocusActivePage()
+    {
+        if (IsOverlayOpen && _overlayPage != null)
+        {
+            RequestFocus(_overlayPage);
+            return;
+        }
+
+        if (_mainPage != null)
+        {
+            RequestFocus(_mainPage);
+        }
+    }
+
     public void Register(BigScreenRoute route, Func<object?, Page> factory, bool cache = true)
     {
         _routes[route] = new RouteEntry(factory, cache);

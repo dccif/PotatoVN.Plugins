@@ -88,6 +88,11 @@ public sealed partial class BigScreenPage : Page
         this.KeyDown += BigScreenPage_KeyDown;
     }
 
+    public void RequestFocus()
+    {
+        _navigator.RequestFocusActivePage();
+    }
+
     private void BigScreenPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
