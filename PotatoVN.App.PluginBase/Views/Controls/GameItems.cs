@@ -27,6 +27,7 @@ public class RecentGameItem : Button
     public RecentGameItem(Galgame game)
     {
         _game = game;
+        DataContext = game;
         this.Width = BaseWidth;
         this.Height = HeightVal;
         this.Padding = new Thickness(0);

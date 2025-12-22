@@ -129,7 +129,14 @@ public sealed partial class BigScreenPage : Page
         }
         InputManager.ReportInput(isGamepad ? InputDeviceType.Gamepad : InputDeviceType.Keyboard);
 
-        if (!e.Handled && (e.Key == Windows.System.VirtualKey.GamepadA || e.Key == Windows.System.VirtualKey.Enter))
+        if (e.Key == Windows.System.VirtualKey.GamepadA)
+        {
+            InvokeFocusedElement();
+            e.Handled = true;
+            return;
+        }
+
+        if (!e.Handled && e.Key == Windows.System.VirtualKey.Enter)
         {
             InvokeFocusedElement();
             e.Handled = true;
@@ -170,15 +177,7 @@ public sealed partial class BigScreenPage : Page
                 var reading = gamepad.GetCurrentReading();
                 var buttons = reading.Buttons;
 
-                if ((DateTime.UtcNow - _lastSystemGamepadInputUtc).TotalMilliseconds < SystemGamepadSuppressMs)
-                {
-                    _previousButtons = buttons;
-                    _previousUp = ((buttons & GamepadButtons.DPadUp) != 0) || reading.LeftThumbstickY > ThumbThreshold;
-                    _previousDown = ((buttons & GamepadButtons.DPadDown) != 0) || reading.LeftThumbstickY < -ThumbThreshold;
-                    _previousLeft = ((buttons & GamepadButtons.DPadLeft) != 0) || reading.LeftThumbstickX < -ThumbThreshold;
-                    _previousRight = ((buttons & GamepadButtons.DPadRight) != 0) || reading.LeftThumbstickX > ThumbThreshold;
-                    continue;
-                }
+                bool suppressNavigation = (DateTime.UtcNow - _lastSystemGamepadInputUtc).TotalMilliseconds < SystemGamepadSuppressMs;
 
                 bool up = ((buttons & GamepadButtons.DPadUp) != 0) || reading.LeftThumbstickY > ThumbThreshold;
                 bool down = ((buttons & GamepadButtons.DPadDown) != 0) || reading.LeftThumbstickY < -ThumbThreshold;
@@ -187,25 +186,28 @@ public sealed partial class BigScreenPage : Page
 
                 bool anyInput = false;
 
-                if (up && !_previousUp)
+                if (!suppressNavigation)
                 {
-                    anyInput = true;
-                    EnqueueMoveFocus(FocusNavigationDirection.Up);
-                }
-                if (down && !_previousDown)
-                {
-                    anyInput = true;
-                    EnqueueMoveFocus(FocusNavigationDirection.Down);
-                }
-                if (left && !_previousLeft)
-                {
-                    anyInput = true;
-                    EnqueueMoveFocus(FocusNavigationDirection.Left);
-                }
-                if (right && !_previousRight)
-                {
-                    anyInput = true;
-                    EnqueueMoveFocus(FocusNavigationDirection.Right);
+                    if (up && !_previousUp)
+                    {
+                        anyInput = true;
+                        EnqueueMoveFocus(FocusNavigationDirection.Up);
+                    }
+                    if (down && !_previousDown)
+                    {
+                        anyInput = true;
+                        EnqueueMoveFocus(FocusNavigationDirection.Down);
+                    }
+                    if (left && !_previousLeft)
+                    {
+                        anyInput = true;
+                        EnqueueMoveFocus(FocusNavigationDirection.Left);
+                    }
+                    if (right && !_previousRight)
+                    {
+                        anyInput = true;
+                        EnqueueMoveFocus(FocusNavigationDirection.Right);
+                    }
                 }
 
                 bool pressA = (buttons & GamepadButtons.A) != 0 && (_previousButtons & GamepadButtons.A) == 0;
@@ -290,13 +292,8 @@ public sealed partial class BigScreenPage : Page
 
     private void InvokeFocusedElement()
     {
-        var focused = FocusManager.GetFocusedElement() as DependencyObject;
-        if (focused == null)
-        {
-            _navigator.RequestFocusActivePage();
-            focused = FocusManager.GetFocusedElement() as DependencyObject;
-            if (focused == null) return;
-        }
+        var focused = GetFocusedElement();
+        if (focused == null) return;
 
         var button = FindAncestor<ButtonBase>(focused);
         if (button != null)
@@ -305,19 +302,20 @@ public sealed partial class BigScreenPage : Page
             return;
         }
 
+        var game = ResolveFocusedGame(focused);
+        if (game != null)
+        {
+            var page = FindAncestor<Page>(focused) ?? GetActivePage();
+            if (page is HomePage home && home.ViewModel != null)
+            {
+                home.ViewModel.ItemClickCommand.Execute(game);
+                return;
+            }
+        }
+
         var gridItem = FindAncestor<GridViewItem>(focused);
         if (gridItem != null)
         {
-            if (gridItem.DataContext is Galgame game)
-            {
-                var page = FindAncestor<Page>(gridItem);
-                if (page is HomePage home && home.ViewModel != null)
-                {
-                    home.ViewModel.ItemClickCommand.Execute(game);
-                    return;
-                }
-            }
-
             InvokeViaAutomation(gridItem);
         }
     }
@@ -349,6 +347,117 @@ public sealed partial class BigScreenPage : Page
         }
 
         return null;
+    }
+
+    private static Galgame? ResolveFocusedGame(DependencyObject focused)
+    {
+        if (focused is FrameworkElement element && element.DataContext is Galgame directGame)
+        {
+            return directGame;
+        }
+
+        var gridItem = FindAncestor<GridViewItem>(focused);
+        if (gridItem == null)
+        {
+            var gridView = FindAncestor<GridView>(focused);
+            if (gridView != null)
+            {
+                if (gridView.SelectedItem is Galgame selectedGame)
+                {
+                    return selectedGame;
+                }
+
+                if (gridView.ItemsPanelRoot is Panel panel)
+                {
+                    foreach (var child in panel.Children)
+                    {
+                        if (child is Control control && control.FocusState != FocusState.Unfocused)
+                        {
+                            if (control.DataContext is Galgame focusedGame)
+                            {
+                                return focusedGame;
+                            }
+
+                            if (control is FrameworkElement focusedElement && focusedElement.DataContext is Galgame elementGame)
+                            {
+                                return elementGame;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        if (gridItem.DataContext is Galgame game)
+        {
+            return game;
+        }
+
+        if (gridItem.Content is FrameworkElement contentElement && contentElement.DataContext is Galgame contentGame)
+        {
+            return contentGame;
+        }
+
+        if (gridItem.ContentTemplateRoot is FrameworkElement templateRoot && templateRoot.DataContext is Galgame rootGame)
+        {
+            return rootGame;
+        }
+
+        return null;
+    }
+
+    private DependencyObject? GetFocusedElement()
+    {
+        var focused = FocusManager.GetFocusedElement() as DependencyObject;
+        if (focused != null)
+        {
+            return focused;
+        }
+
+        _navigator.RequestFocusActivePage();
+        focused = FocusManager.GetFocusedElement() as DependencyObject;
+        if (focused != null)
+        {
+            return focused;
+        }
+
+        var root = GetFocusSearchRoot();
+        if (root == null) return null;
+
+        return FindFocusedDescendant(root);
+    }
+
+    private static DependencyObject? FindFocusedDescendant(DependencyObject root)
+    {
+        if (root is Control control && control.FocusState != FocusState.Unfocused)
+        {
+            return control;
+        }
+
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            var focused = FindFocusedDescendant(child);
+            if (focused != null)
+            {
+                return focused;
+            }
+        }
+
+        return null;
+    }
+
+    private Page? GetActivePage()
+    {
+        if (_navigator.IsOverlayOpen)
+        {
+            return _overlayLayer.Content as Page;
+        }
+
+        return _mainLayer.Content as Page;
     }
 
     private DependencyObject? GetFocusSearchRoot()

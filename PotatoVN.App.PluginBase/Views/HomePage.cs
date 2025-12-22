@@ -68,11 +68,13 @@ public sealed class HomePage : Page, IBigScreenPage
 
         var bodyGrid = new Grid();
         bodyGrid.Children.Add(_mainScroll);
-        bodyGrid.Children.Add(_libraryOverlayCanvas);
         scaffold.Body = bodyGrid;
 
         var contentStack = new StackPanel { Padding = new Thickness(0, 20, 0, 40) };
-        _mainScroll.Content = contentStack;
+        var scrollContent = new Grid();
+        scrollContent.Children.Add(contentStack);
+        scrollContent.Children.Add(_libraryOverlayCanvas);
+        _mainScroll.Content = scrollContent;
 
         // --- Recent Games Section ---
         var recentHeader = new TextBlock
@@ -194,8 +196,7 @@ public sealed class HomePage : Page, IBigScreenPage
         };
         _libraryGridView.Loaded += (s, e) => UpdateLibraryItemSize();
         _libraryGridView.SizeChanged += (s, e) => UpdateLibraryItemSize();
-        _mainScroll.ViewChanged += (s, e) => UpdateLibraryOverlayPosition();
-        bodyGrid.SizeChanged += (s, e) => UpdateLibraryOverlayPosition();
+        // Overlay position is synced via CompositionTarget.Rendering while focused.
         if (XamlRoot != null)
         {
             XamlRoot.Changed += (s, e) => UpdateLibraryItemSize();
@@ -507,6 +508,7 @@ public sealed class HomePage : Page, IBigScreenPage
         }
     }
 
+
     private void AnimateOverlayScale(double scale)
     {
         if (_overlayScale == null) return;
@@ -762,7 +764,7 @@ public sealed class HomePage : Page, IBigScreenPage
             
             if (Math.Abs(delta) > 10)
             {
-                _mainScroll.ChangeView(null, targetOffset, null);
+                _mainScroll.ChangeView(null, targetOffset, null, true);
             }
         }
         catch {}
