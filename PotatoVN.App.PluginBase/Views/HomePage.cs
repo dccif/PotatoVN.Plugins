@@ -38,6 +38,8 @@ public sealed class HomePage : Page, IBigScreenPage
     private const double LibraryCardWidth = 160;
     private const double LibraryCardMargin = 6;
     private const double LibraryAspect = 1.5;
+    private const double LibraryHorizontalPadding = 60;
+    private const double LibraryBottomPadding = 40;
 
     private Control? _lastFocusedControl;
 
@@ -116,7 +118,7 @@ public sealed class HomePage : Page, IBigScreenPage
 
         _libraryGridView = new GridView
         {
-            Padding = new Thickness(60, 0, 60, 40),
+            Padding = new Thickness(LibraryHorizontalPadding, 0, LibraryHorizontalPadding, LibraryBottomPadding),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             SelectionMode = ListViewSelectionMode.None, // Prevent persistent selection state (ghosting)
             IsItemClickEnabled = true,
@@ -619,25 +621,32 @@ public sealed class HomePage : Page, IBigScreenPage
             if (_libraryItemsPanel == null) return;
         }
 
-        var availableWidth = _libraryGridView.ActualWidth;
-        if (availableWidth <= 0)
-        {
-            availableWidth = XamlRoot?.Size.Width ?? 0;
-        }
+        var availableWidth = XamlRoot?.Size.Width ?? _libraryGridView.ActualWidth;
         if (availableWidth <= 0) return;
 
-        var padding = _libraryGridView.Padding.Left + _libraryGridView.Padding.Right;
+        if (XamlRoot != null)
+        {
+            _libraryGridView.Width = XamlRoot.Size.Width;
+        }
+
+        var padding = LibraryHorizontalPadding * 2;
         availableWidth = Math.Max(0, availableWidth - padding);
         if (availableWidth <= 0) return;
 
         var slotMin = LibraryCardWidth + (LibraryCardMargin * 2);
         var columns = Math.Max(1, (int)Math.Floor(availableWidth / slotMin));
-        var slotWidth = availableWidth / columns;
-        var contentWidth = Math.Max(1, slotWidth - (LibraryCardMargin * 2));
+        var rowWidth = columns * slotMin;
+        var extra = Math.Max(0, (availableWidth - rowWidth) / 2);
+        var contentWidth = LibraryCardWidth;
         var contentHeight = contentWidth * LibraryAspect;
 
-        _libraryItemsPanel.ItemWidth = slotWidth;
+        _libraryItemsPanel.ItemWidth = slotMin;
         _libraryItemsPanel.ItemHeight = contentHeight + (LibraryCardMargin * 2);
+        _libraryGridView.Padding = new Thickness(
+            LibraryHorizontalPadding + extra,
+            0,
+            LibraryHorizontalPadding + extra,
+            LibraryBottomPadding);
     }
 
     private static Style BuildLibraryItemContainerStyle()
