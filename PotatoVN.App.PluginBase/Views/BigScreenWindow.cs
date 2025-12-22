@@ -30,6 +30,9 @@ public class BigScreenWindow : Window
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+    [DllImport("user32.dll")]
+    internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
     private const int GWL_STYLE = -16;
     private const int WS_CAPTION = 0x00C00000;
     private const int WS_THICKFRAME = 0x00040000;
@@ -44,6 +47,8 @@ public class BigScreenWindow : Window
     private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_SHOWWINDOW = 0x0040;
     private static readonly IntPtr HWND_TOP = new IntPtr(0);
+    internal const int SW_MINIMIZE = 6;
+    internal const int SW_RESTORE = 9;
 
     public BigScreenWindow(List<Galgame> games, Galgame? initialGame = null)
     {
@@ -66,6 +71,20 @@ public class BigScreenWindow : Window
                 }
             }
         };
+    }
+
+    public void Minimize()
+    {
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        ShowWindow(hWnd, SW_MINIMIZE);
+    }
+
+    public void RestoreAndActivate()
+    {
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        ShowWindow(hWnd, SW_RESTORE);
+        Activate();
+        PositionWindowOnCurrentMonitor();
     }
 
     private void PositionWindowOnCurrentMonitor()

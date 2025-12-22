@@ -611,6 +611,21 @@ public sealed class HomePage : Page, IBigScreenPage
         return null;
     }
 
+    private static T? FindAncestor<T>(DependencyObject? node) where T : DependencyObject
+    {
+        while (node != null)
+        {
+            if (node is T match)
+            {
+                return match;
+            }
+
+            node = VisualTreeHelper.GetParent(node);
+        }
+
+        return null;
+    }
+
     private void UpdateLibraryItemSize()
     {
         if (_libraryItemsPanel == null)
@@ -764,7 +779,7 @@ public sealed class HomePage : Page, IBigScreenPage
             
             if (Math.Abs(delta) > 10)
             {
-                _mainScroll.ChangeView(null, targetOffset, null, true);
+                _mainScroll.ChangeView(null, targetOffset, null);
             }
         }
         catch {}
@@ -802,6 +817,41 @@ public sealed class HomePage : Page, IBigScreenPage
                 ("Esc", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
         }
+    }
+
+    public bool TryActivateFocusedItem()
+    {
+        if (_lastFocusedControl == null || ViewModel == null)
+        {
+            return false;
+        }
+
+        if (_lastFocusedControl is RecentGameItem recentItem)
+        {
+            if (recentItem.DataContext is Galgame recentGame)
+            {
+                ViewModel.ItemClickCommand.Execute(recentGame);
+                return true;
+            }
+        }
+
+        if (_lastFocusedControl is GridViewItem gridItem)
+        {
+            if (gridItem.DataContext is Galgame libraryGame)
+            {
+                ViewModel.ItemClickCommand.Execute(libraryGame);
+                return true;
+            }
+        }
+
+        var ancestorItem = FindAncestor<GridViewItem>(_lastFocusedControl);
+        if (ancestorItem?.DataContext is Galgame ancestorGame)
+        {
+            ViewModel.ItemClickCommand.Execute(ancestorGame);
+            return true;
+        }
+
+        return false;
     }
 
     private void FocusInitial()

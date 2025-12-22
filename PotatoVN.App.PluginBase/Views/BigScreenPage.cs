@@ -11,6 +11,7 @@ using HarmonyLib;
 using System.Threading.Tasks;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi;
+using GalgameManager.WinApp.Base.Models.Msgs;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
@@ -18,6 +19,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System.Threading;
 using Windows.Gaming.Input;
+using System.Windows.Input;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -38,6 +40,7 @@ public sealed partial class BigScreenPage : Page
     private bool _previousLeft;
     private bool _previousRight;
     private DateTime _lastSystemGamepadInputUtc;
+    private bool _minimizedForGame;
 
     private const double ThumbThreshold = 0.5;
     private const int SystemGamepadSuppressMs = 250;
@@ -84,12 +87,26 @@ public sealed partial class BigScreenPage : Page
 
         WeakReferenceMessenger.Default.Register<BigScreenCloseOverlayMessage>(this, (r, m) =>
         {
+            var wasDetail = _overlayLayer.Content is DetailPage;
             _navigator.CloseOverlay();
+            if (wasDetail)
+            {
+                SyncBackToHost();
+            }
         });
 
         WeakReferenceMessenger.Default.Register<PlayGameMessage>(this, (r, m) =>
         {
-             System.Diagnostics.Debug.WriteLine($"Launching {m.Game.Name.Value}");
+            _ = PlayGameAsync(m.Game);
+        });
+
+        WeakReferenceMessenger.Default.Register<GalgameStoppedMessage>(this, (r, m) =>
+        {
+            if (_minimizedForGame)
+            {
+                RestoreBigScreenWindow();
+                _minimizedForGame = false;
+            }
         });
 
         Loaded += (s, e) => 
@@ -278,7 +295,12 @@ public sealed partial class BigScreenPage : Page
     {
         if (_navigator.IsOverlayOpen)
         {
+            var wasDetail = _overlayLayer.Content is DetailPage;
             _navigator.CloseOverlay();
+            if (wasDetail)
+            {
+                SyncBackToHost();
+            }
         }
         else if (_navigator.CanGoBack)
         {
@@ -303,12 +325,17 @@ public sealed partial class BigScreenPage : Page
         }
 
         var game = ResolveFocusedGame(focused);
-        if (game != null)
+        var page = FindAncestor<Page>(focused) ?? GetActivePage();
+        if (page is HomePage home)
         {
-            var page = FindAncestor<Page>(focused) ?? GetActivePage();
-            if (page is HomePage home && home.ViewModel != null)
+            if (game != null && home.ViewModel != null)
             {
                 home.ViewModel.ItemClickCommand.Execute(game);
+                return;
+            }
+
+            if (home.TryActivateFocusedItem())
+            {
                 return;
             }
         }
@@ -505,6 +532,232 @@ public sealed partial class BigScreenPage : Page
             {
                 System.Diagnostics.Debug.WriteLine($"[BigScreen] Nav Sync Error: {ex}");
             }
+        }
+    }
+
+    private async Task PlayGameAsync(Galgame game)
+    {
+        if (await InvokeHostPlayAsync())
+        {
+            MinimizeBigScreenWindow();
+            _minimizedForGame = true;
+        }
+    }
+
+    private async Task<bool> InvokeHostPlayAsync()
+    {
+        try
+        {
+            var invokeOnUiThread = GetUiThreadInvoke();
+            bool invoked = false;
+            Action action = () =>
+            {
+                var viewModel = TryGetHostGalgameViewModel();
+                if (viewModel == null) return;
+
+                var playCommandProp = viewModel.GetType().GetProperty("PlayCommand");
+                if (playCommandProp?.GetValue(viewModel) is ICommand command)
+                {
+                    if (command.CanExecute(null))
+                    {
+                        command.Execute(null);
+                        invoked = true;
+                    }
+                }
+                else
+                {
+                    var playMethod = AccessTools.Method(viewModel.GetType(), "Play");
+                    if (playMethod != null)
+                    {
+                        playMethod.Invoke(viewModel, null);
+                        invoked = true;
+                    }
+                }
+            };
+
+            if (invokeOnUiThread != null)
+            {
+#pragma warning disable CS8600
+#pragma warning disable CS8602
+                await (Task)invokeOnUiThread.Invoke(null, [action]);
+#pragma warning restore CS8602
+#pragma warning restore CS8600
+            }
+            else
+            {
+                action();
+            }
+
+            return invoked;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BigScreen] Play Invoke Error: {ex}");
+            return false;
+        }
+    }
+
+    private static MethodInfo? GetUiThreadInvoke()
+    {
+        try
+        {
+            var assembly = Assembly.Load("GalgameManager");
+            var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
+            return AccessTools.Method(helperType, "InvokeAsync", [typeof(Action)]);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private object? TryGetHostGalgameViewModel()
+    {
+        try
+        {
+            var appType = Application.Current.GetType();
+            var getServiceMethod = appType.GetMethod("GetService");
+            if (getServiceMethod == null) return null;
+
+            var navServiceType = Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager.WinApp.Base")
+                ?? Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager.Core")
+                ?? Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager");
+
+            object? navService = null;
+            if (navServiceType != null)
+            {
+                navService = getServiceMethod.MakeGenericMethod(navServiceType).Invoke(Application.Current, null);
+            }
+
+            var frame = navService != null ? TryGetFrame(navService) : null;
+            if (frame == null)
+            {
+                var navViewServiceType = Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.WinApp.Base")
+                    ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.Core")
+                    ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager")
+                    ?? Type.GetType("GalgameManager.Services.NavigationViewService, GalgameManager");
+
+                if (navViewServiceType != null)
+                {
+                    var navViewService = getServiceMethod.MakeGenericMethod(navViewServiceType).Invoke(Application.Current, null);
+                    frame = navViewService != null ? TryGetFrame(navViewService) : null;
+
+                    if (frame == null && navViewService != null)
+                    {
+                        var navField = navViewService.GetType().GetField("_navigationService", BindingFlags.Instance | BindingFlags.NonPublic);
+                        var navObj = navField?.GetValue(navViewService);
+                        frame = navObj != null ? TryGetFrame(navObj) : null;
+                    }
+                }
+            }
+
+            if (frame?.Content is Page page)
+            {
+                var dataContext = page.DataContext;
+                if (dataContext != null && dataContext.GetType().FullName == "GalgameManager.ViewModels.GalgameViewModel")
+                {
+                    return dataContext;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BigScreen] Get ViewModel Error: {ex}");
+            return null;
+        }
+    }
+
+    private static Frame? TryGetFrame(object service)
+    {
+        var frameProp = service.GetType().GetProperty("Frame", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return frameProp?.GetValue(service) as Frame;
+    }
+
+    private void MinimizeBigScreenWindow()
+    {
+        if (_parentWindow is BigScreenWindow window)
+        {
+            window.Minimize();
+            return;
+        }
+
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(_parentWindow);
+        BigScreenWindow.ShowWindow(hWnd, BigScreenWindow.SW_MINIMIZE);
+    }
+
+    private void RestoreBigScreenWindow()
+    {
+        if (_parentWindow is BigScreenWindow window)
+        {
+            window.RestoreAndActivate();
+            return;
+        }
+
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(_parentWindow);
+        BigScreenWindow.ShowWindow(hWnd, BigScreenWindow.SW_RESTORE);
+        _parentWindow.Activate();
+    }
+
+    private async void SyncBackToHost()
+    {
+        if (Plugin.HostApi == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var assembly = Assembly.Load("GalgameManager");
+            var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
+            var invokeMethod = AccessTools.Method(helperType, "InvokeAsync", [typeof(Action)]);
+
+            if (invokeMethod != null)
+            {
+#pragma warning disable CS8600
+#pragma warning disable CS8602
+                await (Task)invokeMethod.Invoke(null, [ new Action(() => InvokeHostBack()) ]);
+#pragma warning restore CS8602
+#pragma warning restore CS8600
+            }
+            else
+            {
+                InvokeHostBack();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BigScreen] Back Sync Error: {ex}");
+        }
+    }
+
+    private void InvokeHostBack()
+    {
+        try
+        {
+            var appType = Application.Current.GetType();
+            var getServiceMethod = appType.GetMethod("GetService");
+            if (getServiceMethod == null) return;
+
+            var serviceType = Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.WinApp.Base")
+                ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.Core")
+                ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager")
+                ?? Type.GetType("GalgameManager.Services.NavigationViewService, GalgameManager");
+
+            if (serviceType == null) return;
+
+            var service = getServiceMethod.MakeGenericMethod(serviceType).Invoke(Application.Current, null);
+            if (service == null) return;
+
+            var method = AccessTools.Method(service.GetType(), "OnBackRequested");
+            if (method == null) return;
+
+            method.Invoke(service, new object?[] { null, null });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BigScreen] Host Back Invoke Error: {ex}");
         }
     }
 }
