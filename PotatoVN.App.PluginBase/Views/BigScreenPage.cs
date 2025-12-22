@@ -15,37 +15,44 @@ namespace PotatoVN.App.PluginBase.Views;
 
 public sealed partial class BigScreenPage : Page
 {
-    private readonly ContentControl _viewContainer;
+    private readonly Grid _rootGrid;
+    private readonly ContentControl _mainLayer;
+    private readonly ContentControl _overlayLayer;
+    
     private readonly List<Galgame> _games;
     private readonly Window _parentWindow;
-    
-    // Simple stack for "Back" navigation
-    private readonly Stack<UIElement> _navStack = new();
+    private HomePage? _homePage;
 
     public BigScreenPage(Window parentWindow, List<Galgame> games, Galgame? initialGame = null)
     {
         _parentWindow = parentWindow;
         _games = games;
 
-        // UI Construction: Use ContentControl instead of Frame
-        _viewContainer = new ContentControl
-        {
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            VerticalContentAlignment = VerticalAlignment.Stretch
-        };
-        Content = _viewContainer;
+        // UI Construction: Two Layers
+        _rootGrid = new Grid();
+        _mainLayer = new ContentControl { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
+        _overlayLayer = new ContentControl { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Visibility = Visibility.Collapsed };
+        
+        _rootGrid.Children.Add(_mainLayer);
+        _rootGrid.Children.Add(_overlayLayer);
+        
+        Content = _rootGrid;
         Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
+
+        // Initialize Home Page (Always alive)
+        _homePage = new HomePage(_games);
+        _mainLayer.Content = _homePage;
 
         // Register Messenger
         WeakReferenceMessenger.Default.Register<NavigateToDetailMessage>(this, (r, m) =>
         {
-            NavigateTo(new DetailPage(m.Game));
+            OpenDetail(new DetailPage(m.Game));
             SyncToHost(m.Game);
         });
 
         WeakReferenceMessenger.Default.Register<NavigateToHomeMessage>(this, (r, m) =>
         {
-            GoBack();
+            CloseDetail();
         });
 
         WeakReferenceMessenger.Default.Register<PlayGameMessage>(this, (r, m) =>
@@ -55,16 +62,14 @@ public sealed partial class BigScreenPage : Page
 
         Loaded += (s, e) => 
         {
-            try
+            if (initialGame != null)
             {
-                if (initialGame != null)
-                    NavigateTo(new DetailPage(initialGame), addToStack: false); // Initial View
-                else
-                    NavigateTo(new HomePage(_games), addToStack: false); // Initial View
+                OpenDetail(new DetailPage(initialGame));
             }
-            catch (Exception ex)
+            else
             {
-                System.Diagnostics.Debug.WriteLine($"[BigScreenPage] Init Failed: {ex}");
+                // Ensure focus on Home
+                _homePage.Focus(FocusState.Programmatic);
             }
         };
         
@@ -74,29 +79,40 @@ public sealed partial class BigScreenPage : Page
         this.KeyDown += BigScreenPage_KeyDown;
     }
 
-    private void NavigateTo(UIElement newView, bool addToStack = true)
+    private void OpenDetail(Page detailPage)
     {
-        if (addToStack && _viewContainer.Content is UIElement currentView)
-        {
-            _navStack.Push(currentView);
-        }
-        _viewContainer.Content = newView;
+        _overlayLayer.Content = detailPage;
+        _overlayLayer.Visibility = Visibility.Visible;
+        _mainLayer.Visibility = Visibility.Collapsed; // Hide main to prevent focus bleeding?
+        // Actually, collapsing main layer WILL unload it and lose state. 
+        // We must keep it Visible but IsHitTestVisible=False to preserve state.
+        _mainLayer.Visibility = Visibility.Visible; 
+        _mainLayer.IsHitTestVisible = false;
+        
+        // Move focus to new page
+        detailPage.Focus(FocusState.Programmatic);
     }
 
-    private void GoBack()
+    private void CloseDetail()
     {
-        if (_navStack.Count > 0)
+        if (_overlayLayer.Visibility == Visibility.Visible)
         {
-            var previousView = _navStack.Pop();
-            _viewContainer.Content = previousView;
-        }
-        else
-        {
-            // If stack is empty but we are on DetailPage (initial load), swap to Home
-            if (_viewContainer.Content is DetailPage)
-            {
-                 NavigateTo(new HomePage(_games), addToStack: false);
-            }
+            _overlayLayer.Content = null;
+            _overlayLayer.Visibility = Visibility.Collapsed;
+            
+            _mainLayer.IsHitTestVisible = true;
+            
+            // Restore focus to Home
+            // Since Home was never unloaded, it should still have its state.
+            // We just need to ensure focus returns to it.
+            // If we just call Focus(), it might focus the Page itself.
+            // We want to focus the *last focused element* inside Home.
+            // Since we didn't unload, we didn't save state.
+            // But 'FocusManager' usually tracks focus scope.
+            // If focus was lost because we focused DetailPage, Home lost focus.
+            
+            // We can ask Home to recover focus.
+            _homePage?.RestoreFocus();
         }
     }
 
@@ -104,15 +120,9 @@ public sealed partial class BigScreenPage : Page
     {
         if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
         {
-            if (_navStack.Count > 0)
+            if (_overlayLayer.Visibility == Visibility.Visible)
             {
-                GoBack();
-                e.Handled = true;
-            }
-            else if (_viewContainer.Content is DetailPage)
-            {
-                // Edge case: Started on DetailPage, B should go to Home
-                NavigateTo(new HomePage(_games), addToStack: false);
+                CloseDetail();
                 e.Handled = true;
             }
             else

@@ -25,6 +25,8 @@ public sealed class HomePage : Page
     private ScrollViewer _mainScroll;
     private ScrollViewer _recentScroll;
 
+    private Control? _lastFocusedControl;
+
     public HomePage(List<Galgame> games)
     {
         ViewModel = new HomeViewModel(games);
@@ -35,7 +37,7 @@ public sealed class HomePage : Page
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Main Content
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Footer
-        rootGrid.Background = new SolidColorBrush(Color.FromArgb(255, 20, 20, 20)); // Deep dark bg
+        rootGrid.Background = new SolidColorBrush(Color.FromArgb(255, 32, 32, 32)); // Ensure opaque background
         Content = rootGrid;
 
         // 2. Header
@@ -170,24 +172,38 @@ public sealed class HomePage : Page
             }
         };
 
+        // Track Focus
+        this.GotFocus += (s, e) =>
+        {
+            if (e.OriginalSource is Control control)
+            {
+                _lastFocusedControl = control;
+            }
+        };
+
         // Events
         Loaded += async (s, args) =>
         {
             RefreshHints(InputManager.CurrentInput);
             InputManager.InputChanged += RefreshHints;
             
+            // Hook PreviewKeyDown for manual navigation override
             this.PreviewKeyDown += OnPreviewKeyDown;
 
             await System.Threading.Tasks.Task.Delay(100);
             
-            if (_recentListPanel.Children.Count > 0)
+            if (_lastFocusedControl == null)
             {
-                 FocusRecentItem(0);
-            }
-            else if (_libraryGridView.Items.Count > 0)
-            {
-                 _libraryGridView.SelectedIndex = 0;
-                 (_libraryGridView.ContainerFromIndex(0) as Control)?.Focus(FocusState.Programmatic);
+                // Initial Focus
+                if (_recentListPanel.Children.Count > 0)
+                {
+                     FocusRecentItem(0);
+                }
+                else if (_libraryGridView.Items.Count > 0)
+                {
+                     _libraryGridView.SelectedIndex = 0;
+                     (_libraryGridView.ContainerFromIndex(0) as Control)?.Focus(FocusState.Programmatic);
+                }
             }
         };
 
@@ -196,6 +212,31 @@ public sealed class HomePage : Page
             InputManager.InputChanged -= RefreshHints;
             this.PreviewKeyDown -= OnPreviewKeyDown;
         };
+    }
+
+    public void RestoreFocus()
+    {
+        if (_lastFocusedControl != null)
+        {
+            _lastFocusedControl.Focus(FocusState.Programmatic);
+            // Ensure visibility if it was scrolled out?
+            // Usually if it wasn't unloaded, scroll pos is same.
+            // But if window resized or something, checking center is safe.
+            if (IsDescendantOf(_lastFocusedControl, _recentListPanel))
+            {
+                CenterInScrollViewer(_recentScroll, _lastFocusedControl);
+                // Also ensure Main scroll is top
+                _mainScroll.ChangeView(null, 0, null);
+            }
+            else if (IsDescendantOf(_lastFocusedControl, _libraryGridView))
+            {
+                CenterVerticalInMainScroll(_lastFocusedControl);
+            }
+        }
+        else
+        {
+            NavigateToRecent();
+        }
     }
 
     private void PopulateRecentGames()
@@ -222,13 +263,19 @@ public sealed class HomePage : Page
         if (!isUp && !isDown && !isLeft && !isRight) return;
 
         var focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        if (focused == null)
+        {
+             if (isDown || isRight) NavigateToRecent();
+             e.Handled = true;
+             return;
+        }
 
         if (IsDescendantOf(focused, _recentListPanel))
         {
             if (isRight) { NavigateRecentHorizontal(focused, 1); e.Handled = true; }
             else if (isLeft) { NavigateRecentHorizontal(focused, -1); e.Handled = true; }
             else if (isDown) { NavigateToLibrary(); e.Handled = true; }
-            else if (isUp) { e.Handled = true; } // Prevent scroll
+            else if (isUp) { e.Handled = true; }
         }
         else if (IsDescendantOf(focused, _libraryGridView))
         {
@@ -258,8 +305,10 @@ public sealed class HomePage : Page
         return false;
     }
 
-    private void NavigateRecentHorizontal(DependencyObject focused, int delta)
+    private void NavigateRecentHorizontal(DependencyObject? focused, int delta)
     {
+        if (focused == null) return;
+
         int currentIndex = -1;
         for (int i = 0; i < _recentListPanel.Children.Count; i++)
         {
@@ -332,7 +381,6 @@ public sealed class HomePage : Page
 
     private void NavigateToRecent()
     {
-        // Scroll to top to ensure Recent list is visible
         _mainScroll.ChangeView(null, 0, null);
 
         if (_recentListPanel.Children.Count > 0)
@@ -348,29 +396,14 @@ public sealed class HomePage : Page
             var transform = element.TransformToVisual(_mainScroll);
             var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
             
-            // Calculate center
-            double scrollHeight = _mainScroll.ViewportHeight;
-            double itemCenterY = rect.Y + (rect.Height / 2);
-            
-            // Current relative position is rect.Y because TransformToVisual takes current scroll into account? 
-            // No, TransformToVisual gives coordinates relative to the Visual's top-left.
-            // If _mainScroll is scrolled, rect.Y will be negative if above.
-            
-            // We need absolute position relative to content to calculate Absolute Offset.
-            // Actually ChangeView takes Absolute Offset.
-            // _mainScroll.VerticalOffset is the current scroll.
-            // rect.Y is position relative to the Viewport (Top-Left of visible area).
-            
             double relativeCenterY = rect.Y + (rect.Height / 2);
-            double targetRelativeY = scrollHeight / 2;
+            double targetRelativeY = _mainScroll.ViewportHeight / 2;
             
             double delta = relativeCenterY - targetRelativeY;
             double targetOffset = _mainScroll.VerticalOffset + delta;
             
-            // Clamp
             targetOffset = Math.Max(0, Math.Min(targetOffset, _mainScroll.ScrollableHeight));
             
-            // Only scroll if significant change to avoid jitter
             if (Math.Abs(delta) > 10)
             {
                 _mainScroll.ChangeView(null, targetOffset, null);
@@ -379,7 +412,7 @@ public sealed class HomePage : Page
         catch {}
     }
 
-    private bool IsAtTopRowOfGrid(DependencyObject focused)
+    private bool IsAtTopRowOfGrid(DependencyObject? focused)
     {
         if (focused is UIElement element)
         {
@@ -387,7 +420,7 @@ public sealed class HomePage : Page
              {
                  var transform = element.TransformToVisual(_libraryGridView);
                  var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-                 return point.Y < 100; // Heuristic: < 100px from top
+                 return point.Y < 100;
              }
              catch { return true; }
         }

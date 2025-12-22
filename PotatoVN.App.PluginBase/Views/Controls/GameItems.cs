@@ -17,8 +17,8 @@ public class RecentGameItem : Button
     private Image _landscapeImg;
     private TextBlock _titleBlock;
     private Grid _rootGrid;
-    private Storyboard _expandSb;
-    private Storyboard _collapseSb;
+    private Storyboard? _expandSb;
+    private Storyboard? _collapseSb;
 
     private const double BaseWidth = 180;
     private const double ExpandedWidth = 320;
@@ -150,8 +150,8 @@ public class RecentGameItem : Button
     private void OnGotFocus(object sender, RoutedEventArgs e)
     {
         // Bring to front (Z-Index) is handled by layout, but scaling/width works
-        _collapseSb.Stop();
-        _expandSb.Begin();
+        _collapseSb?.Stop();
+        _expandSb?.Begin();
         
         // Scale Up slightly
         // Note: Simple transforms on Button usually require setting a TransformGroup first.
@@ -160,8 +160,8 @@ public class RecentGameItem : Button
 
     private void OnLostFocus(object sender, RoutedEventArgs e)
     {
-        _expandSb.Stop();
-        _collapseSb.Begin();
+        _expandSb?.Stop();
+        _collapseSb?.Begin();
     }
 }
 

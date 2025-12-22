@@ -27,6 +27,7 @@ public sealed class DetailPage : Page
 
         // 1. Root Grid
         var rootGrid = new Grid();
+        rootGrid.Background = new SolidColorBrush(Color.FromArgb(255, 32, 32, 32)); // Ensure opaque background
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Content
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Footer
