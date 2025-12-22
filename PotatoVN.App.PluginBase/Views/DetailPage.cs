@@ -1,10 +1,8 @@
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
 using PotatoVN.App.PluginBase.ViewModels;
 using GalgameManager.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI;
@@ -14,7 +12,7 @@ using System.Collections.Generic;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public sealed class DetailPage : Page
+public sealed class DetailPage : Page, IBigScreenPage
 {
     public DetailViewModel? ViewModel { get; private set; }
     private Button _playBtn;
@@ -25,23 +23,13 @@ public sealed class DetailPage : Page
     {
         ViewModel = new DetailViewModel(game);
 
-        // 1. Root Grid
-        var rootGrid = new Grid();
-        rootGrid.Background = new SolidColorBrush(Color.FromArgb(255, 32, 32, 32)); // Ensure opaque background
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Content
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Footer
-        Content = rootGrid;
-
-        // Header
-        var header = new BigScreenHeader();
-        rootGrid.Children.Add(header);
-        Grid.SetRow(header, 0);
+        var scaffold = new BigScreenScaffold();
+        Content = scaffold;
+        _footer = scaffold.Footer;
 
         // Content Container (Grid with BG)
         var contentContainer = new Grid();
-        rootGrid.Children.Add(contentContainer);
-        Grid.SetRow(contentContainer, 1);
+        scaffold.Body = contentContainer;
 
         // Background Image (in Content Row)
         var bgImage = new Image
@@ -149,11 +137,6 @@ public sealed class DetailPage : Page
 
         contentContainer.Children.Add(contentStack);
 
-        // Footer
-        _footer = new BigScreenFooter();
-        rootGrid.Children.Add(_footer);
-        Grid.SetRow(_footer, 2);
-
         // BINDINGS
         Loaded += (s, e) =>
         {
@@ -216,5 +199,18 @@ public sealed class DetailPage : Page
                 ("Esc", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
         }
+    }
+
+    public void OnNavigatedTo(object? parameter)
+    {
+    }
+
+    public void OnNavigatedFrom()
+    {
+    }
+
+    public void RequestFocus()
+    {
+        _playBtn.Focus(FocusState.Programmatic);
     }
 }

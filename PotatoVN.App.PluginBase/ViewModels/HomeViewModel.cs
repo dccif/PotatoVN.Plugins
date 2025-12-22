@@ -59,7 +59,7 @@ public partial class HomeViewModel : ObservableObject
     {
         if (game != null)
         {
-            WeakReferenceMessenger.Default.Send(new NavigateToDetailMessage(game));
+            WeakReferenceMessenger.Default.Send(new BigScreenNavigateMessage(BigScreenRoute.Detail, game, BigScreenNavMode.Overlay));
         }
     }
 }

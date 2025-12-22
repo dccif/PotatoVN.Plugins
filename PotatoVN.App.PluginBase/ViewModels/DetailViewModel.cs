@@ -25,6 +25,6 @@ public partial class DetailViewModel : ObservableObject
     [RelayCommand]
     private void Back()
     {
-        WeakReferenceMessenger.Default.Send(new NavigateToHomeMessage());
+        WeakReferenceMessenger.Default.Send(new BigScreenCloseOverlayMessage());
     }
 }

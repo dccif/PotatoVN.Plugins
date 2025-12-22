@@ -124,3 +124,41 @@ public class BigScreenFooter : Grid
         }
     }
 }
+
+public class BigScreenScaffold : Grid
+{
+    private readonly ContentPresenter _bodyPresenter;
+
+    public BigScreenHeader Header { get; }
+    public BigScreenFooter Footer { get; }
+
+    public UIElement? Body
+    {
+        get => _bodyPresenter.Content as UIElement;
+        set => _bodyPresenter.Content = value;
+    }
+
+    public BigScreenScaffold()
+    {
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
+
+        Header = new BigScreenHeader();
+        Children.Add(Header);
+        Grid.SetRow(Header, 0);
+
+        _bodyPresenter = new ContentPresenter
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+        Children.Add(_bodyPresenter);
+        Grid.SetRow(_bodyPresenter, 1);
+
+        Footer = new BigScreenFooter();
+        Children.Add(Footer);
+        Grid.SetRow(Footer, 2);
+    }
+}

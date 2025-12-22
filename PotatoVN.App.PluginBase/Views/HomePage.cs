@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
 using PotatoVN.App.PluginBase.ViewModels;
 using GalgameManager.Models;
 using System.Collections.Generic;
@@ -14,7 +13,7 @@ using Microsoft.UI.Xaml.Media;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public sealed class HomePage : Page
+public sealed class HomePage : Page, IBigScreenPage
 {
     public HomeViewModel? ViewModel { get; private set; }
     
@@ -32,28 +31,18 @@ public sealed class HomePage : Page
         ViewModel = new HomeViewModel(games);
         this.XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled;
 
-        // 1. Root Grid
-        var rootGrid = new Grid();
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Main Content
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Footer
-        rootGrid.Background = new SolidColorBrush(Color.FromArgb(255, 32, 32, 32)); // Ensure opaque background
-        Content = rootGrid;
+        var scaffold = new BigScreenScaffold();
+        Content = scaffold;
+        _footer = scaffold.Footer;
 
-        // 2. Header
-        var header = new BigScreenHeader();
-        rootGrid.Children.Add(header);
-        Grid.SetRow(header, 0);
-
-        // 3. Main Content ScrollViewer (Vertical)
+        // Main Content ScrollViewer (Vertical)
         _mainScroll = new ScrollViewer 
         { 
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             IsTabStop = false // Important: Don't take focus
         };
-        rootGrid.Children.Add(_mainScroll);
-        Grid.SetRow(_mainScroll, 1);
+        scaffold.Body = _mainScroll;
 
         var contentStack = new StackPanel { Padding = new Thickness(0, 20, 0, 40) };
         _mainScroll.Content = contentStack;
@@ -79,7 +68,13 @@ public sealed class HomePage : Page
             IsTabStop = false // Don't take focus
         };
         
-        _recentListPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        _recentListPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled,
+            XYFocusDownNavigationStrategy = XYFocusNavigationStrategy.Projection
+        };
         _recentScroll.Content = _recentListPanel;
         contentStack.Children.Add(_recentScroll);
 
@@ -100,7 +95,8 @@ public sealed class HomePage : Page
             HorizontalAlignment = HorizontalAlignment.Stretch,
             SelectionMode = ListViewSelectionMode.None, // Prevent persistent selection state (ghosting)
             IsItemClickEnabled = true,
-            XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled
+            XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled,
+            XYFocusUpNavigationStrategy = XYFocusNavigationStrategy.Projection
         };
         contentStack.Children.Add(_libraryGridView);
 
@@ -147,13 +143,9 @@ public sealed class HomePage : Page
             System.Diagnostics.Debug.WriteLine($"[HomePage] Library Template Load Failed: {ex}");
         }
 
-        // 4. Footer
-        _footer = new BigScreenFooter();
-        rootGrid.Children.Add(_footer);
-        Grid.SetRow(_footer, 2);
-
         // Logic
         PopulateRecentGames();
+        UpdateFocusMap();
         
         var binding = new Binding { Source = ViewModel, Path = new PropertyPath("LibraryGames"), Mode = BindingMode.OneWay };
         BindingOperations.SetBinding(_libraryGridView, ItemsControl.ItemsSourceProperty, binding);
@@ -161,6 +153,19 @@ public sealed class HomePage : Page
         _libraryGridView.ItemClick += (s, e) => 
         {
              if (e.ClickedItem is Galgame g && ViewModel != null) ViewModel.ItemClickCommand.Execute(g);
+        };
+
+        _libraryGridView.ContainerContentChanging += (s, e) =>
+        {
+            if (e.ItemContainer is GridViewItem item)
+            {
+                item.KeyDown -= OnLibraryItemKeyDown;
+                item.KeyDown += OnLibraryItemKeyDown;
+                if (_recentListPanel.Children.Count > 0)
+                {
+                    item.XYFocusUp = _recentListPanel;
+                }
+            }
         };
         
         // Auto-center library items vertically
@@ -186,32 +191,34 @@ public sealed class HomePage : Page
         {
             RefreshHints(InputManager.CurrentInput);
             InputManager.InputChanged += RefreshHints;
-            
-            // Hook PreviewKeyDown for manual navigation override
-            this.PreviewKeyDown += OnPreviewKeyDown;
+            this.KeyDown += OnKeyDown;
 
             await System.Threading.Tasks.Task.Delay(100);
             
             if (_lastFocusedControl == null)
             {
-                // Initial Focus
-                if (_recentListPanel.Children.Count > 0)
-                {
-                     FocusRecentItem(0);
-                }
-                else if (_libraryGridView.Items.Count > 0)
-                {
-                     _libraryGridView.SelectedIndex = 0;
-                     (_libraryGridView.ContainerFromIndex(0) as Control)?.Focus(FocusState.Programmatic);
-                }
+                FocusInitial();
             }
         };
 
         Unloaded += (s, args) =>
         {
             InputManager.InputChanged -= RefreshHints;
-            this.PreviewKeyDown -= OnPreviewKeyDown;
+            this.KeyDown -= OnKeyDown;
         };
+    }
+
+    public void OnNavigatedTo(object? parameter)
+    {
+    }
+
+    public void OnNavigatedFrom()
+    {
+    }
+
+    public void RequestFocus()
+    {
+        RestoreFocus();
     }
 
     public void RestoreFocus()
@@ -235,7 +242,7 @@ public sealed class HomePage : Page
         }
         else
         {
-            NavigateToRecent();
+            FocusInitial();
         }
     }
 
@@ -246,53 +253,17 @@ public sealed class HomePage : Page
         {
             var item = new RecentGameItem(game);
             item.Click += (s, e) => ViewModel.ItemClickCommand.Execute(game);
+            item.GotFocus += (s, e) => CenterInScrollViewer(_recentScroll, item);
+            item.KeyDown -= OnRecentItemKeyDown;
+            item.KeyDown += OnRecentItemKeyDown;
             _recentListPanel.Children.Add(item);
         }
     }
 
-    private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    private void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
         var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA && e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
         InputManager.ReportInput(isGamepad ? InputDeviceType.Gamepad : InputDeviceType.Keyboard);
-
-        bool isUp = e.Key == Windows.System.VirtualKey.Up || e.Key == Windows.System.VirtualKey.GamepadDPadUp || e.Key == Windows.System.VirtualKey.GamepadLeftThumbstickUp;
-        bool isDown = e.Key == Windows.System.VirtualKey.Down || e.Key == Windows.System.VirtualKey.GamepadDPadDown || e.Key == Windows.System.VirtualKey.GamepadLeftThumbstickDown;
-        bool isLeft = e.Key == Windows.System.VirtualKey.Left || e.Key == Windows.System.VirtualKey.GamepadDPadLeft || e.Key == Windows.System.VirtualKey.GamepadLeftThumbstickLeft;
-        bool isRight = e.Key == Windows.System.VirtualKey.Right || e.Key == Windows.System.VirtualKey.GamepadDPadRight || e.Key == Windows.System.VirtualKey.GamepadLeftThumbstickRight;
-
-        if (!isUp && !isDown && !isLeft && !isRight) return;
-
-        var focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
-        if (focused == null)
-        {
-             if (isDown || isRight) NavigateToRecent();
-             e.Handled = true;
-             return;
-        }
-
-        if (IsDescendantOf(focused, _recentListPanel))
-        {
-            if (isRight) { NavigateRecentHorizontal(focused, 1); e.Handled = true; }
-            else if (isLeft) { NavigateRecentHorizontal(focused, -1); e.Handled = true; }
-            else if (isDown) { NavigateToLibrary(); e.Handled = true; }
-            else if (isUp) { e.Handled = true; }
-        }
-        else if (IsDescendantOf(focused, _libraryGridView))
-        {
-            if (isUp)
-            {
-                if (IsAtTopRowOfGrid(focused))
-                {
-                    NavigateToRecent();
-                    e.Handled = true;
-                }
-            }
-        }
-        else
-        {
-             if (isDown || isRight) NavigateToRecent();
-             e.Handled = true;
-        }
     }
 
     private bool IsDescendantOf(DependencyObject? node, DependencyObject parent)
@@ -305,30 +276,6 @@ public sealed class HomePage : Page
         return false;
     }
 
-    private void NavigateRecentHorizontal(DependencyObject? focused, int delta)
-    {
-        if (focused == null) return;
-
-        int currentIndex = -1;
-        for (int i = 0; i < _recentListPanel.Children.Count; i++)
-        {
-            if (_recentListPanel.Children[i] == focused || IsDescendantOf(focused, _recentListPanel.Children[i]))
-            {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        if (currentIndex >= 0)
-        {
-            int nextIndex = Math.Clamp(currentIndex + delta, 0, _recentListPanel.Children.Count - 1);
-            if (nextIndex != currentIndex)
-            {
-                FocusRecentItem(nextIndex);
-            }
-        }
-    }
-
     private void FocusRecentItem(int index)
     {
         if (index < 0 || index >= _recentListPanel.Children.Count) return;
@@ -339,6 +286,108 @@ public sealed class HomePage : Page
             target.Focus(FocusState.Programmatic);
             CenterInScrollViewer(_recentScroll, target);
         }
+    }
+
+    private void OnRecentItemKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!IsDownKey(e.Key)) return;
+
+        if (sender is FrameworkElement element)
+        {
+            if (FocusNearestLibraryItem(element))
+            {
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnLibraryItemKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!IsUpKey(e.Key)) return;
+
+        if (sender is GridViewItem item && IsAtTopRow(item))
+        {
+            if (FocusNearestRecentItem(item))
+            {
+                e.Handled = true;
+            }
+        }
+    }
+
+    private bool FocusNearestLibraryItem(FrameworkElement source)
+    {
+        if (_libraryGridView.ItemsPanelRoot is not Panel panel || panel.Children.Count == 0)
+            return false;
+
+        var root = Content as UIElement;
+        if (root == null) return false;
+
+        var sourceCenter = GetCenterX(root, source);
+        GridViewItem? best = null;
+        double bestDelta = double.MaxValue;
+
+        foreach (var child in panel.Children)
+        {
+            if (child is GridViewItem item)
+            {
+                var delta = Math.Abs(GetCenterX(root, item) - sourceCenter);
+                if (delta < bestDelta)
+                {
+                    bestDelta = delta;
+                    best = item;
+                }
+            }
+        }
+
+        if (best != null)
+        {
+            best.Focus(FocusState.Programmatic);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool FocusNearestRecentItem(FrameworkElement source)
+    {
+        if (_recentListPanel.Children.Count == 0) return false;
+
+        var root = Content as UIElement;
+        if (root == null) return false;
+
+        var sourceCenter = GetCenterX(root, source);
+        Control? best = null;
+        double bestDelta = double.MaxValue;
+
+        foreach (var child in _recentListPanel.Children)
+        {
+            if (child is Control item)
+            {
+                var delta = Math.Abs(GetCenterX(root, item) - sourceCenter);
+                if (delta < bestDelta)
+                {
+                    bestDelta = delta;
+                    best = item;
+                }
+            }
+        }
+
+        if (best != null)
+        {
+            _mainScroll.ChangeView(null, 0, null);
+            best.Focus(FocusState.Programmatic);
+            CenterInScrollViewer(_recentScroll, best);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static double GetCenterX(UIElement root, FrameworkElement element)
+    {
+        var transform = element.TransformToVisual(root);
+        var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        return rect.X + (rect.Width / 2);
     }
 
     private void CenterInScrollViewer(ScrollViewer scroll, FrameworkElement element)
@@ -355,38 +404,6 @@ public sealed class HomePage : Page
             scroll.ChangeView(offset, null, null);
         }
         catch {}
-    }
-
-    private void NavigateToLibrary()
-    {
-        if (_libraryGridView.Items.Count > 0)
-        {
-            var index = _libraryGridView.SelectedIndex < 0 ? 0 : _libraryGridView.SelectedIndex;
-            var container = _libraryGridView.ContainerFromIndex(index) as Control;
-            
-            if (container == null)
-            {
-                _libraryGridView.ScrollIntoView(_libraryGridView.Items[index]);
-            }
-            
-            container = _libraryGridView.ContainerFromIndex(index) as Control;
-            container?.Focus(FocusState.Programmatic);
-            
-            if (container == null)
-            {
-                 _libraryGridView.Focus(FocusState.Programmatic);
-            }
-        }
-    }
-
-    private void NavigateToRecent()
-    {
-        _mainScroll.ChangeView(null, 0, null);
-
-        if (_recentListPanel.Children.Count > 0)
-        {
-             FocusRecentItem(0); 
-        }
     }
 
     private void CenterVerticalInMainScroll(FrameworkElement element)
@@ -412,19 +429,18 @@ public sealed class HomePage : Page
         catch {}
     }
 
-    private bool IsAtTopRowOfGrid(DependencyObject? focused)
+    private bool IsAtTopRow(GridViewItem item)
     {
-        if (focused is UIElement element)
+        try
         {
-             try
-             {
-                 var transform = element.TransformToVisual(_libraryGridView);
-                 var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-                 return point.Y < 100;
-             }
-             catch { return true; }
+            var transform = item.TransformToVisual(_libraryGridView);
+            var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+            return point.Y <= item.ActualHeight;
         }
-        return true;
+        catch
+        {
+            return true;
+        }
     }
 
     private void RefreshHints(InputDeviceType type)
@@ -445,5 +461,51 @@ public sealed class HomePage : Page
                 ("Esc", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
         }
+    }
+
+    private void FocusInitial()
+    {
+        if (_recentListPanel.Children.Count > 0)
+        {
+            FocusRecentItem(0);
+        }
+        else if (_libraryGridView.Items.Count > 0)
+        {
+            _libraryGridView.SelectedIndex = 0;
+            (_libraryGridView.ContainerFromIndex(0) as Control)?.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void UpdateFocusMap()
+    {
+        if (_recentListPanel.Children.Count == 0)
+        {
+            return;
+        }
+
+        _recentListPanel.XYFocusDown = _libraryGridView;
+        _libraryGridView.XYFocusUp = _recentListPanel;
+
+        foreach (var child in _recentListPanel.Children)
+        {
+            if (child is UIElement element)
+            {
+                element.XYFocusDown = _libraryGridView;
+            }
+        }
+    }
+
+    private static bool IsDownKey(Windows.System.VirtualKey key)
+    {
+        return key == Windows.System.VirtualKey.Down
+               || key == Windows.System.VirtualKey.GamepadDPadDown
+               || key == Windows.System.VirtualKey.GamepadLeftThumbstickDown;
+    }
+
+    private static bool IsUpKey(Windows.System.VirtualKey key)
+    {
+        return key == Windows.System.VirtualKey.Up
+               || key == Windows.System.VirtualKey.GamepadDPadUp
+               || key == Windows.System.VirtualKey.GamepadLeftThumbstickUp;
     }
 }

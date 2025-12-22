@@ -18,10 +18,10 @@ public sealed partial class BigScreenPage : Page
     private readonly Grid _rootGrid;
     private readonly ContentControl _mainLayer;
     private readonly ContentControl _overlayLayer;
+    private readonly BigScreenNavigator _navigator;
     
     private readonly List<Galgame> _games;
     private readonly Window _parentWindow;
-    private HomePage? _homePage;
 
     public BigScreenPage(Window parentWindow, List<Galgame> games, Galgame? initialGame = null)
     {
@@ -39,20 +39,32 @@ public sealed partial class BigScreenPage : Page
         Content = _rootGrid;
         Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
 
-        // Initialize Home Page (Always alive)
-        _homePage = new HomePage(_games);
-        _mainLayer.Content = _homePage;
+        _navigator = new BigScreenNavigator(_mainLayer, _overlayLayer);
+        _navigator.Register(BigScreenRoute.Home, _ => new HomePage(_games), cache: true);
+        _navigator.Register(BigScreenRoute.Detail, parameter =>
+        {
+            if (parameter is Galgame game)
+            {
+                return new DetailPage(game);
+            }
+
+            throw new ArgumentException("Detail page requires a Galgame parameter.", nameof(parameter));
+        }, cache: false);
 
         // Register Messenger
-        WeakReferenceMessenger.Default.Register<NavigateToDetailMessage>(this, (r, m) =>
+        WeakReferenceMessenger.Default.Register<BigScreenNavigateMessage>(this, (r, m) =>
         {
-            OpenDetail(new DetailPage(m.Game));
-            SyncToHost(m.Game);
+            _navigator.Navigate(m.Route, m.Parameter, m.Mode);
+
+            if (m.Route == BigScreenRoute.Detail && m.Parameter is Galgame game)
+            {
+                SyncToHost(game);
+            }
         });
 
-        WeakReferenceMessenger.Default.Register<NavigateToHomeMessage>(this, (r, m) =>
+        WeakReferenceMessenger.Default.Register<BigScreenCloseOverlayMessage>(this, (r, m) =>
         {
-            CloseDetail();
+            _navigator.CloseOverlay();
         });
 
         WeakReferenceMessenger.Default.Register<PlayGameMessage>(this, (r, m) =>
@@ -62,14 +74,11 @@ public sealed partial class BigScreenPage : Page
 
         Loaded += (s, e) => 
         {
+            _navigator.Navigate(BigScreenRoute.Home);
+
             if (initialGame != null)
             {
-                OpenDetail(new DetailPage(initialGame));
-            }
-            else
-            {
-                // Ensure focus on Home
-                _homePage.Focus(FocusState.Programmatic);
+                _navigator.Navigate(BigScreenRoute.Detail, initialGame, BigScreenNavMode.Overlay);
             }
         };
         
@@ -79,50 +88,18 @@ public sealed partial class BigScreenPage : Page
         this.KeyDown += BigScreenPage_KeyDown;
     }
 
-    private void OpenDetail(Page detailPage)
-    {
-        _overlayLayer.Content = detailPage;
-        _overlayLayer.Visibility = Visibility.Visible;
-        _mainLayer.Visibility = Visibility.Collapsed; // Hide main to prevent focus bleeding?
-        // Actually, collapsing main layer WILL unload it and lose state. 
-        // We must keep it Visible but IsHitTestVisible=False to preserve state.
-        _mainLayer.Visibility = Visibility.Visible; 
-        _mainLayer.IsHitTestVisible = false;
-        
-        // Move focus to new page
-        detailPage.Focus(FocusState.Programmatic);
-    }
-
-    private void CloseDetail()
-    {
-        if (_overlayLayer.Visibility == Visibility.Visible)
-        {
-            _overlayLayer.Content = null;
-            _overlayLayer.Visibility = Visibility.Collapsed;
-            
-            _mainLayer.IsHitTestVisible = true;
-            
-            // Restore focus to Home
-            // Since Home was never unloaded, it should still have its state.
-            // We just need to ensure focus returns to it.
-            // If we just call Focus(), it might focus the Page itself.
-            // We want to focus the *last focused element* inside Home.
-            // Since we didn't unload, we didn't save state.
-            // But 'FocusManager' usually tracks focus scope.
-            // If focus was lost because we focused DetailPage, Home lost focus.
-            
-            // We can ask Home to recover focus.
-            _homePage?.RestoreFocus();
-        }
-    }
-
     private void BigScreenPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.GamepadB || e.Key == Windows.System.VirtualKey.Escape)
         {
-            if (_overlayLayer.Visibility == Visibility.Visible)
+            if (_navigator.IsOverlayOpen)
             {
-                CloseDetail();
+                _navigator.CloseOverlay();
+                e.Handled = true;
+            }
+            else if (_navigator.CanGoBack)
+            {
+                _navigator.GoBack();
                 e.Handled = true;
             }
             else
