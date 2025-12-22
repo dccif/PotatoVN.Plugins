@@ -1,4 +1,3 @@
-using GalgameManager.Enums;
 using GalgameManager.WinApp.Base.Contracts;
 using GalgameManager.WinApp.Base.Contracts.PluginUi;
 using GalgameManager.WinApp.Base.Models;
@@ -7,9 +6,10 @@ using PotatoVN.App.PluginBase.Patches;
 using HarmonyLib;
 using System;
 using System.Diagnostics;
-using System.Globalization;
-using System.Resources;
 using System.Threading.Tasks;
+using System.Resources;
+using System.Globalization;
+using GalgameManager.Enums;
 
 namespace PotatoVN.App.PluginBase;
 
@@ -110,8 +110,5 @@ public partial class Plugin : IPlugin, IPluginSetting
     }
 
     protected Guid Id => Info.Id;
-
-    // GamepadService is a singleton and lives for the app lifetime.
-    // Explicit disposal is not required here unless plugin unload is supported.
 }
 
