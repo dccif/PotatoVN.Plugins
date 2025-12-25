@@ -11,7 +11,7 @@ internal class EtwProvider : ISaveCandidateProvider
     private TraceEventSession? _session;
     private const string SESSION_NAME = "PotatoVN-SaveDetector-Session";
 
-    public async Task StartAsync(DetectionContext context, Func<string, bool> pathFilter)
+    public async Task StartAsync(DetectionContext context, Func<string, IoOperation, bool> pathFilter)
     {
         _ = Task.Run(() =>
         {
@@ -29,7 +29,7 @@ internal class EtwProvider : ISaveCandidateProvider
                 {
                     if (data.ProcessID == context.TargetProcess.Id && !string.IsNullOrEmpty(data.FileName))
                     {
-                        if (pathFilter(data.FileName))
+                        if (pathFilter(data.FileName, IoOperation.Create))
                         {
                             context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now, IoOperation.Create));
                             context.Log($"[ETW] Candidate via Create: {data.FileName}", LogLevel.Debug);
@@ -42,7 +42,7 @@ internal class EtwProvider : ISaveCandidateProvider
                 {
                     if (data.ProcessID == context.TargetProcess.Id && !string.IsNullOrEmpty(data.FileName))
                     {
-                        if (pathFilter(data.FileName))
+                        if (pathFilter(data.FileName, IoOperation.Write))
                         {
                             context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now, IoOperation.Write));
                             context.Log($"[ETW] Candidate via Write: {data.FileName}", LogLevel.Debug);
@@ -55,7 +55,7 @@ internal class EtwProvider : ISaveCandidateProvider
                 {
                     if (data.ProcessID == context.TargetProcess.Id && !string.IsNullOrEmpty(data.FileName))
                     {
-                        if (pathFilter(data.FileName))
+                        if (pathFilter(data.FileName, IoOperation.Rename))
                         {
                             context.Candidates.Enqueue(new PathCandidate(data.FileName, ProviderSource.ETW, DateTime.Now, IoOperation.Rename));
                             context.Log($"[ETW] Candidate via Rename: {data.FileName}", LogLevel.Debug);

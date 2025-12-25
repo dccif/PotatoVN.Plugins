@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 
 namespace PotatoVN.App.PluginBase.SaveDetection.Models;
@@ -13,7 +14,7 @@ public class SaveDetectorOptions
     public int AnalysisIntervalMs { get; init; } = 1500;
 
     // 投票阈值
-    public int MinVoteCountThreshold { get; init; } = 3;
+    public int MinVoteCountThreshold { get; init; } = 1;
     public float ConfidenceScoreThreshold { get; init; } = 12.0f;
 
     // 权值分配
@@ -73,8 +74,10 @@ public class SaveDetectorOptions
     // 文件后缀黑名单
     public string[] ExtensionBlacklist { get; init; } = {
         ".exe", ".dll", ".lnk", ".ini", ".log", ".tmp", ".pdb", ".msi",
-        // 游戏资源文件后缀
-        ".ypf", ".arc", ".pak", ".xp3", ".dat", ".bin", ".ogg", ".wav", ".mp4", ".wmv", ".bik"
+        // 游戏资源文件后缀 (音频/视频/压缩包)
+        ".ypf", ".arc", ".pak", ".xp3", ".dat", ".bin", ".ogg", ".wav", ".mp4", ".wmv", ".bik",
+        // 图像/字体/UI资源 (新增)
+        ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".svg", ".ico", ".ttf", ".otf", ".woff", ".woff2"
     };
 
     // 存档文件后缀白名单
@@ -104,6 +107,37 @@ public class SaveDetectorOptions
         "chs", "cht", "cn", "zh", "zhcn", "zhtw", "sc", "tc", "chinese",
         "简体", "繁体", "中文", "汉化", "汉化版", "steam简中"
     };
+
+    // 通用系统根目录（这些目录会被监视，但不应作为最终结果返回）
+    public HashSet<string> GenericRoots { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public SaveDetectorOptions()
+    {
+        // 初始化通用根目录
+        try
+        {
+            void AddRoot(string path)
+            {
+                if (!string.IsNullOrEmpty(path))
+                    GenericRoots.Add(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            }
+
+            AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+            AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+            AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+            
+            // LocalLow (Common for Unity games)
+            var localLow = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)?.Replace("Local", "LocalLow");
+            AddRoot(localLow ?? "");
+
+            // Common subfolders
+            AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games"));
+            AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Saved Games"));
+            AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Saved Games"));
+        }
+        catch { /* Ignore environment errors */ }
+    }
 
     public bool AllowEtw { get; init; } = true;
 

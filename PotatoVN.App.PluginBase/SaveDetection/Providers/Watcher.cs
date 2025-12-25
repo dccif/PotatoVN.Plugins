@@ -15,7 +15,7 @@ internal class WatcherProvider : ISaveCandidateProvider
     private readonly HashSet<string> _pendingPaths = new();
     private bool _isMonitoring;
 
-    public Task StartAsync(DetectionContext context, Func<string, bool> pathFilter)
+    public Task StartAsync(DetectionContext context, Func<string, IoOperation, bool> pathFilter)
     {
         if (context.Game == null)
         {
@@ -62,23 +62,11 @@ internal class WatcherProvider : ISaveCandidateProvider
         if (!string.IsNullOrEmpty(game.LocalPath))
             AddCandidatePath(game.LocalPath);
 
-        // 2. Standard User Paths
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        AddCandidatePath(documentsPath);
-        AddCandidatePath(Path.Combine(documentsPath, "My Games"));
-        AddCandidatePath(Path.Combine(documentsPath, "Saved Games"));
-
-        var userProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        AddCandidatePath(userProfilePath);
-        AddCandidatePath(Path.Combine(userProfilePath, "Saved Games"));
-
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var localLowPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData).Replace("Local", "LocalLow");
-
-        AddCandidatePath(appDataPath);
-        AddCandidatePath(localAppDataPath);
-        AddCandidatePath(localLowPath);
+        // 2. Standard User Paths (From centralized GenericRoots)
+        foreach (var root in options.GenericRoots)
+        {
+            AddCandidatePath(root);
+        }
 
         // 3. Heuristic Paths
         AddHeuristicPaths(game, options);
@@ -134,9 +122,6 @@ internal class WatcherProvider : ISaveCandidateProvider
             }
         }
 
-        // Note: Variant generation is now mainly in VotingAnalyzer
-        // But we still need some basic keywords for path generation
-
         return keywords.Distinct().ToList();
     }
 
@@ -145,25 +130,20 @@ internal class WatcherProvider : ISaveCandidateProvider
         if (string.IsNullOrEmpty(path)) return true;
         if (!string.IsNullOrEmpty(appPath) && path.StartsWith(appPath, StringComparison.OrdinalIgnoreCase)) return true;
 
-        // If the path is inside the game root, we don't apply the blacklist
-        // (because game names or internal folders might match blacklisted words like "tmp")
         if (gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
             return false;
 
         return options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void StartMonitoring(DetectionContext context, Func<string, bool> pathFilter)
+    private void StartMonitoring(DetectionContext context, Func<string, IoOperation, bool> pathFilter)
     {
         _isMonitoring = true;
         var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
         var gameRoot = context.Game?.LocalPath;
 
-        // Ensure we always watch the game root directory if it exists
         if (gameRoot != null && Directory.Exists(gameRoot))
         {
-            // For game root, we only check if it's the app path itself to avoid infinite recursion
-            // but we BYPASS the general PathBlacklist because game folder names often contain words like "TMP"
             if (!string.IsNullOrEmpty(currentAppPath) && gameRoot.StartsWith(currentAppPath, StringComparison.OrdinalIgnoreCase))
             {
                 context.Log($"[Watcher] Skipping game root because it is inside app path: {gameRoot}", LogLevel.Debug);
@@ -177,7 +157,6 @@ internal class WatcherProvider : ISaveCandidateProvider
 
         foreach (var path in _candidatePaths)
         {
-            // Skip if already watching (e.g. game root)
             if (_watchers.Any(w => w.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) continue;
 
             if (IsPathExcluded(path, currentAppPath, context.Settings, gameRoot))
@@ -199,7 +178,7 @@ internal class WatcherProvider : ISaveCandidateProvider
         }
     }
 
-    private async Task RetryMonitoringAsync(DetectionContext context, Func<string, bool> pathFilter)
+    private async Task RetryMonitoringAsync(DetectionContext context, Func<string, IoOperation, bool> pathFilter)
     {
         var gameRoot = context.Game?.LocalPath;
         for (int i = 0; i < context.Settings.WatcherRetryCount; i++)
@@ -228,7 +207,7 @@ internal class WatcherProvider : ISaveCandidateProvider
         }
     }
 
-    private void CreateFileSystemWatcher(string path, DetectionContext context, Func<string, bool> pathFilter)
+    private void CreateFileSystemWatcher(string path, DetectionContext context, Func<string, IoOperation, bool> pathFilter)
     {
         try
         {
@@ -236,17 +215,27 @@ internal class WatcherProvider : ISaveCandidateProvider
             {
                 IncludeSubdirectories = true,
                 EnableRaisingEvents = true,
-                InternalBufferSize = 65536, // Increased to 64KB
+                InternalBufferSize = 65536,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.Attributes | NotifyFilters.CreationTime
             };
 
             FileSystemEventHandler handler = (s, e) =>
             {
                 if (!_isMonitoring) return;
-                context.Log($"[Watcher] File Event: {e.FullPath} ({e.ChangeType})", LogLevel.Debug);
-                if (pathFilter(e.FullPath))
+                
+                var op = e.ChangeType switch
                 {
-                    context.Candidates.Enqueue(new PathCandidate(e.FullPath, ProviderSource.FileSystemWatcher, DateTime.Now));
+                    WatcherChangeTypes.Created => IoOperation.Create,
+                    WatcherChangeTypes.Changed => IoOperation.Write,
+                    WatcherChangeTypes.Renamed => IoOperation.Rename,
+                    _ => IoOperation.Unknown
+                };
+
+                context.Log($"[Watcher] File Event: {e.FullPath} ({e.ChangeType} -> {op})", LogLevel.Debug);
+                
+                if (pathFilter(e.FullPath, op))
+                {
+                    context.Candidates.Enqueue(new PathCandidate(e.FullPath, ProviderSource.FileSystemWatcher, DateTime.Now, op));
                     context.Log($"[Watcher] Candidate Added: {e.FullPath}", LogLevel.Debug);
                 }
                 else

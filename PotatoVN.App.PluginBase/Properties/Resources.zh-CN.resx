@@ -151,7 +151,7 @@
     <value>正在监控 {0} 的文件变动...</value>
   </data>
   <data name="Msg_SaveDetectedTitle" xml:space="preserve">
-    <value>已检测到存档路径</value>
+    <value>已探测到存档路径</value>
   </data>
   <data name="Msg_SaveDetectedMsg" xml:space="preserve">
     <value>路径已更新为: {0}</value>
@@ -181,7 +181,7 @@
     <value>正在监控文件变动...</value>
   </data>
   <data name="GameSaveDetector_Success" xml:space="preserve">
-    <value>成功检测到存档：{0}</value>
+    <value>成功探测到存档：{0}</value>
   </data>
   <data name="GameSaveDetector_NotFound" xml:space="preserve">
     <value>未检测到存档变动</value>
