@@ -1,4 +1,3 @@
-using GalgameManager.Enums;
 using GalgameManager.Models;
 using PotatoVN.App.PluginBase.SaveDetection.Models;
 using System;

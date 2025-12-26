@@ -1,7 +1,7 @@
-using System.Threading.Tasks;
 using PotatoVN.App.PluginBase.SaveDetection.Analyzers;
 using PotatoVN.App.PluginBase.SaveDetection.Models;
 using PotatoVN.App.PluginBase.SaveDetection.Providers;
+using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase.SaveDetection.Pipeline;
 

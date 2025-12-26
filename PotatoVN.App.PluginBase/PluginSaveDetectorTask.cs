@@ -9,9 +9,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.InteropServices;
 
 namespace PotatoVN.App.PluginBase;
 
@@ -20,17 +20,17 @@ public class PluginSaveDetectorTask : BgTaskBase
     private readonly Galgame _game;
     private readonly IMessenger? _messenger;
     private readonly SaveDetectorOptions _options;
-    
+
     private Process? _gameProcess;
-    
+
     public override string Title => Plugin.GetLocalized("GameSaveDetectorTask_Title") ?? "Save Detection";
     public override bool CanCancel => true;
     public override bool ProgressOnTrayIcon => true;
 
     // For serialization (BgTaskBase requires parameterless constructor)
-    public PluginSaveDetectorTask() 
-    { 
-        _game = new Galgame(); 
+    public PluginSaveDetectorTask()
+    {
+        _game = new Galgame();
         _options = new SaveDetectorOptions();
     }
 
@@ -59,7 +59,7 @@ public class PluginSaveDetectorTask : BgTaskBase
             // 1. Find process (Orchestration Step 1)
             ChangeProgress(0, 1, Plugin.GetLocalized("GameSaveDetector_Initializing") ?? "Initializing...");
             _gameProcess = await WaitForGameProcessAsync();
-            
+
             if (_gameProcess == null || _gameProcess.HasExited)
             {
                 ChangeProgress(-1, 100, Plugin.GetLocalized("GameSaveDetector_ProcessNotFound") ?? "Game process not found");
@@ -68,7 +68,7 @@ public class PluginSaveDetectorTask : BgTaskBase
 
             // 2. Initialize Context (Orchestration Step 2)
             ISaveDetectorLogger taskLogger = new BgTaskLogger(this);
-            
+
             // Note: We use CancellationToken from BgTaskBase
             var context = new DetectionContext(_gameProcess, CancellationToken!.Value, taskLogger, _options)
             {
@@ -79,10 +79,10 @@ public class PluginSaveDetectorTask : BgTaskBase
 
             // 3. Run Pipeline (Orchestration Step 3)
             // We define the pipeline explicitly here as per requirement
-            var pipeline = new List<IDetectionStep> 
-            { 
-                new DiscoveryStep(), 
-                new AnalysisStep() 
+            var pipeline = new List<IDetectionStep>
+            {
+                new DiscoveryStep(),
+                new AnalysisStep()
             };
 
             try
@@ -104,10 +104,10 @@ public class PluginSaveDetectorTask : BgTaskBase
             if (context.FinalPath != null)
             {
                 _game.DetectedSavePath = GamePortablePath.Create(context.FinalPath, _game.LocalPath);
-                
+
                 string msgTemplate = Plugin.GetLocalized("GameSaveDetector_Success") ?? "Detected: {0}";
                 string msg = string.Format(msgTemplate, context.FinalPath);
-                
+
                 ChangeProgress(1, 1, msg, true);
             }
             else
@@ -145,14 +145,14 @@ public class PluginSaveDetectorTask : BgTaskBase
     private async Task<Process?> WaitForGameProcessAsync()
     {
         if (string.IsNullOrEmpty(_game?.ExePath)) return null;
-        
+
         string exeName = Path.GetFileNameWithoutExtension(_game.ExePath);
-        
+
         // Wait using configurable time
         for (int i = 0; i < _options.ProcessWaitTimeSeconds; i++)
         {
             if (CancellationToken != null && CancellationToken.Value.IsCancellationRequested) return null;
-            
+
             try
             {
                 var processes = Process.GetProcessesByName(exeName);
@@ -186,7 +186,7 @@ public class PluginSaveDetectorTask : BgTaskBase
     private class BgTaskLogger : ISaveDetectorLogger
     {
         private readonly PluginSaveDetectorTask _parent;
-        
+
         public BgTaskLogger(PluginSaveDetectorTask parent) => _parent = parent;
 
         public void Log(string message, LogLevel level)
@@ -197,7 +197,7 @@ public class PluginSaveDetectorTask : BgTaskBase
                 // Keep the current percentage, just update message
                 _parent.ChangeProgress(_parent.CurrentProgress.Current, 1, message, false);
             }
-            
+
             // Always output to debug console for development
             Debug.WriteLine($"[PluginSaveDetectorTask] [{level}] {message}");
         }

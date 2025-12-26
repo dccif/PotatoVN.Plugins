@@ -1,7 +1,7 @@
+using PotatoVN.App.PluginBase.SaveDetection.Models;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using PotatoVN.App.PluginBase.SaveDetection.Models;
 
 namespace PotatoVN.App.PluginBase.SaveDetection;
 
