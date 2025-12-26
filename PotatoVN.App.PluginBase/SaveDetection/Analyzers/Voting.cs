@@ -25,7 +25,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         // 0. Context Update
         if (game != null && game != _cachedGame)
         {
-            UpdateGameContext(game);
+            Prepare(game);
         }
 
         // 1. Global Path Blacklist (Strict)
@@ -95,7 +95,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         return false;
     }
 
-    private void UpdateGameContext(Galgame game)
+    public void Prepare(Galgame game)
     {
         _cachedGame = game;
         _cachedLowerVariants = _variantHelper.GetVariants(game);
@@ -146,7 +146,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
         if (game != null && game != _cachedGame)
         {
-            UpdateGameContext(game);
+            Prepare(game);
         }
 
         var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";

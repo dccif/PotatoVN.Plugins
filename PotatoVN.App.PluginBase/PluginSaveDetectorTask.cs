@@ -192,7 +192,7 @@ public class PluginSaveDetectorTask : BgTaskBase
         public void Log(string message, LogLevel level)
         {
             // Only show Info/Warning/Error in UI to avoid spamming
-            if (level >= LogLevel.Info)
+            if (level >= LogLevel.Info && _parent.CurrentProgress != null)
             {
                 // Keep the current percentage, just update message
                 _parent.ChangeProgress(_parent.CurrentProgress.Current, 1, message, false);
