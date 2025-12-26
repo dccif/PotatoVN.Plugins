@@ -1,10 +1,10 @@
+using GalgameManager.Models;
+using PotatoVN.App.PluginBase.SaveDetection.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using GalgameManager.Models;
-using PotatoVN.App.PluginBase.SaveDetection.Models;
 
 namespace PotatoVN.App.PluginBase.SaveDetection.Providers;
 
@@ -133,7 +133,7 @@ internal class WatcherProvider : ISaveCandidateProvider
         if (gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        return options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase));
+        return Constants.ShouldExcludePath(path.AsSpan(), appPath);
     }
 
     private void StartMonitoring(DetectionContext context, Func<string, IoOperation, bool> pathFilter)
@@ -222,7 +222,7 @@ internal class WatcherProvider : ISaveCandidateProvider
             FileSystemEventHandler handler = (s, e) =>
             {
                 if (!_isMonitoring) return;
-                
+
                 var op = e.ChangeType switch
                 {
                     WatcherChangeTypes.Created => IoOperation.Create,
@@ -232,7 +232,7 @@ internal class WatcherProvider : ISaveCandidateProvider
                 };
 
                 context.Log($"[Watcher] File Event: {e.FullPath} ({e.ChangeType} -> {op})", LogLevel.Debug);
-                
+
                 if (pathFilter(e.FullPath, op))
                 {
                     context.Candidates.Enqueue(new PathCandidate(e.FullPath, ProviderSource.FileSystemWatcher, DateTime.Now, op));

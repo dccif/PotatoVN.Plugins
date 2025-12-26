@@ -1,4 +1,5 @@
 using GalgameManager.Models;
+using PotatoVN.App.PluginBase.SaveDetection.Helpers;
 using PotatoVN.App.PluginBase.SaveDetection.Models;
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
     private List<string>? _fuzzyMatchCoreVariants;
     private Galgame? _cachedGame;
     private const double SIMILARITY_THRESHOLD = 0.8;
+    private readonly GameVariantHelper _variantHelper = new();
 
     public Action<string, LogLevel>? Logger { get; set; }
 
@@ -20,53 +22,92 @@ internal class VotingAnalyzer : ISavePathAnalyzer
     {
         if (string.IsNullOrWhiteSpace(path) || !path.Contains(':')) return false;
 
-        // 1. Global Path Blacklist (Strict Filter)
-        if (IsBlacklisted(path, options.PathBlacklist))
+        // 0. Context Update
+        if (game != null && game != _cachedGame)
         {
-            Logger?.Invoke($"[Voting] Path rejected by global path blacklist: {path}", LogLevel.Debug);
+            UpdateGameContext(game);
+        }
+
+        // 1. Global Path Blacklist (Strict)
+        if (IsBlacklisted(path, Constants.ExcludePathKeywords))
+        {
             return false;
         }
 
-        // 2. Extension Filter (Nuanced)
-        var ext = Path.GetExtension(path);
-        bool isBlacklistedExt = options.ExtensionBlacklist.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
-
-        if (isBlacklistedExt)
+        // 2. Game Variant Match (Layer 2 - The Primary Filter)
+        bool matchesGameVariant = false;
+        if (_cachedLowerVariants != null && _cachedLowerVariants.Count > 0)
         {
-            // The extension is in the blacklist (e.g. .dat, .bin, .png)
-            // But we must check if it's actually a save file masquerading as an asset (common in .dat/.bin)
-
-            // A. Is it explicitly whitelisted? (Conflict resolution: Whitelist wins)
-            var extWithoutDot = ext.TrimStart('.');
-            if (options.SaveExtensionWhitelist.Any(w => w.Equals(extWithoutDot, StringComparison.OrdinalIgnoreCase)))
+            var pathSpan = path.AsSpan();
+            foreach (var variant in _cachedLowerVariants)
             {
-                // It's a .dat or .bin, which is ambiguous. We accept it for now and let the scorer decide.
-                Logger?.Invoke($"[Voting] Path accepted (Ambiguous Extension in Whitelist): {path}", LogLevel.Debug);
-                return true;
-            }
+                if (string.IsNullOrEmpty(variant)) continue;
 
-            // B. Context Heuristic: Is it in a "Save" directory?
-            // If we have "Assets/data.bin" -> Reject.
-            // If we have "SaveData/data.bin" -> Accept.
-            var directoryName = Path.GetFileName(Path.GetDirectoryName(path));
-            if (!string.IsNullOrEmpty(directoryName) &&
-                options.SaveDirectorySuffixPatterns.Any(p => directoryName.Contains(p, StringComparison.OrdinalIgnoreCase)))
-            {
-                Logger?.Invoke($"[Voting] Path accepted (Blacklisted extension but in Save Dir): {path}", LogLevel.Debug);
-                return true;
+                if (variant.Length < 4)
+                {
+                    if (ContainsWholeWord(pathSpan, variant.AsSpan()))
+                    {
+                        matchesGameVariant = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    if (path.Contains(variant, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matchesGameVariant = true;
+                        break;
+                    }
+                }
             }
-
-            // C. Otherwise, it's just a blacklisted file (e.g. .png in Assets)
-            Logger?.Invoke($"[Voting] Path rejected by extension blacklist: {path}", LogLevel.Debug);
-            return false;
         }
 
-        // 3. Default Accept
-        Logger?.Invoke($"[Voting] Path accepted (Passed Basic Filters): {path}", LogLevel.Debug);
-        return true;
+        if (matchesGameVariant)
+        {
+            return true;
+        }
+
+        // 3. Whitelist / Heuristic Fallback (Layer 3)
+        var ext = Path.GetExtension(path).TrimStart('.');
+        bool isWhitelistedExt = Constants.SaveFileExtensions.Contains(ext);
+        bool hasSaveKeyword = Constants.ContainsSaveKeyword(Path.GetFileName(path).AsSpan());
+
+        bool isStandardPath = path.Contains("AppData", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("Saved Games", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("My Games", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("Documents", StringComparison.OrdinalIgnoreCase) ||
+                              path.Contains("Steam", StringComparison.OrdinalIgnoreCase);
+
+        // A. Known Save Extension -> Accept
+        if (isWhitelistedExt) return true;
+
+        // B. "Save" keyword + Standard Location -> Accept
+        if (hasSaveKeyword && isStandardPath) return true;
+
+        // C. WRITE operation in "Save" directory -> Accept
+        if (op == IoOperation.Write || op == IoOperation.Rename)
+        {
+            var dirName = Path.GetFileName(Path.GetDirectoryName(path));
+            if (!string.IsNullOrEmpty(dirName) && Constants.SaveDirectorySuffixPatterns.Any(p => dirName.Contains(p, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
     }
 
-    private bool IsBlacklisted(string path, string[] blacklist)
+    private void UpdateGameContext(Galgame game)
+    {
+        _cachedGame = game;
+        _cachedLowerVariants = _variantHelper.GetVariants(game);
+
+        var coreNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (game.Name?.Value is { } n) coreNames.Add(n);
+        if (!string.IsNullOrEmpty(game.ChineseName)) coreNames.Add(game.ChineseName!);
+        if (game.OriginalName?.Value is { } o) coreNames.Add(o);
+        _fuzzyMatchCoreVariants = coreNames.Where(v => !string.IsNullOrEmpty(v)).Select(v => v.ToLowerInvariant()).Distinct().ToList();
+    }
+
+    private bool IsBlacklisted(string path, IEnumerable<string> blacklist)
     {
         var pathSpan = path.AsSpan();
         foreach (var blocked in blacklist)
@@ -81,7 +122,6 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         int index = 0;
         while (true)
         {
-            // Find next occurrence
             var remaining = text.Slice(index);
             int found = remaining.IndexOf(word, StringComparison.OrdinalIgnoreCase);
             if (found < 0) return false;
@@ -89,132 +129,97 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             int actualIndex = index + found;
             int endIndex = actualIndex + word.Length;
 
-            // Check boundaries
             bool startBoundary = actualIndex == 0 || !char.IsLetterOrDigit(text[actualIndex - 1]);
             bool endBoundary = endIndex == text.Length || !char.IsLetterOrDigit(text[endIndex]);
 
             if (startBoundary && endBoundary) return true;
 
-            // Move past this occurrence
             index = actualIndex + 1;
         }
     }
+
     public string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options, Galgame? game = null)
     {
         if (candidates == null || candidates.Count == 0) return null;
 
         Logger?.Invoke($"[Voting] Starting analysis with {candidates.Count} candidates", LogLevel.Debug);
 
-        // Update variants if game context is provided
         if (game != null && game != _cachedGame)
         {
-            PrecomputeVariants(game);
-            _cachedGame = game;
+            UpdateGameContext(game);
         }
 
-                var directoryScores = new Dictionary<string, ScoredPath>(StringComparer.OrdinalIgnoreCase);
-                var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
-                var gameRoot = game?.LocalPath;
-        
-                foreach (var candidate in candidates)
-                {
-                    var path = candidate.Path;
-                    var directory = Path.GetDirectoryName(path);
-                    if (Directory.Exists(path) && !File.Exists(path)) directory = path;
-        
-                    if (string.IsNullOrEmpty(directory)) continue;
-                    
-                    var normalizedDir = directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        
-                    // Skip generic system roots (Centralized check)
-                    if (options.GenericRoots.Contains(normalizedDir)) continue;
-        
-                    if (IsPathExcluded(directory, currentAppPath, options, gameRoot)) continue;
-        
-                    if (!directoryScores.TryGetValue(normalizedDir, out var scored))
-                    {
-                        scored = new ScoredPath { Path = directory };
-                        directoryScores[normalizedDir] = scored;
-                    }
-            // 1. Base Score based on Operation
-            // Increased weights to prioritize active changes
-            double baseScore = candidate.Op switch
-            {
-                IoOperation.Write => 50,
-                IoOperation.Rename => 70,
-                IoOperation.Create => 5, // Slightly higher base
-                _ => 2
-            };
+        var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+        var gameRoot = game?.LocalPath;
 
-            var ext = Path.GetExtension(path).TrimStart('.');
-            bool isWhitelistedExt = options.SaveExtensionWhitelist.Any(w => w.Equals(ext, StringComparison.OrdinalIgnoreCase));
-            bool hasSaveKeyword = options.SaveKeywordWhitelist.Any(w => Path.GetFileName(path).Contains(w, StringComparison.OrdinalIgnoreCase));
-            bool isLikelySaveDirectory = false;
-
-            var dirName = Path.GetFileName(directory);
-            if (!string.IsNullOrEmpty(dirName))
+        var groupedCandidates = candidates
+            .Select(c =>
             {
-                isLikelySaveDirectory = options.SaveDirectorySuffixPatterns.Any(p => dirName.Contains(p, StringComparison.OrdinalIgnoreCase));
+                var dir = Path.GetDirectoryName(c.Path);
+                if (string.IsNullOrEmpty(dir)) return (Dir: string.Empty, Candidate: c);
+                if (Directory.Exists(c.Path) && !File.Exists(c.Path)) dir = c.Path;
+                return (Dir: dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), Candidate: c);
+            })
+            .Where(x => !string.IsNullOrEmpty(x.Dir))
+            .Where(x => !options.GenericRoots.Contains(x.Dir))
+            .Where(x => !IsPathExcluded(x.Dir, currentAppPath, options, gameRoot))
+            .GroupBy(x => x.Dir)
+            .ToList();
+
+        var directoryScores = new Dictionary<string, ScoredPath>(StringComparer.OrdinalIgnoreCase);
+
+        var sortedGroups = groupedCandidates
+            .Select(g => new
+            {
+                Dir = g.Key,
+                Candidates = g.Select(x => x.Candidate).ToList(),
+                LatestTime = g.Max(x => x.Candidate.DetectedTime),
+                FileCount = g.Select(x => x.Candidate.Path).Distinct().Count()
+            })
+            .OrderByDescending(g => g.LatestTime)
+            .ToList();
+
+        for (int i = 0; i < sortedGroups.Count; i++)
+        {
+            var group = sortedGroups[i];
+            var scored = new ScoredPath { Path = group.Dir };
+
+            if (i == 0) scored.Score += 400;
+            else if (i == 1) scored.Score += 200;
+            else if (i == 2) scored.Score += 100;
+
+            scored.Score += CalculateBehaviorScore(group.Candidates);
+
+            foreach (var candidate in group.Candidates)
+            {
+                scored.Score += CalculateSaveFileScore(candidate.Path, options);
             }
+            scored.VoteCount = group.Candidates.Count;
 
-            // 2. Extension Bonus (Crucial for identifying known save formats)
-            if (isWhitelistedExt)
-            {
-                baseScore += 200; // Major boost for known save extensions
-            }
+            scored.Score += Constants.GetPathStructureScore(group.Dir.AsSpan());
 
-            // 3. Game Root Heuristic / Penalty
-            // If it's a Create in game directory without strong evidence, it's likely an asset read.
-            if (candidate.Op == IoOperation.Create &&
-                game?.LocalPath != null && path.StartsWith(game.LocalPath, StringComparison.OrdinalIgnoreCase))
-            {
-                // We skip penalty if:
-                // a) It has a known save extension
-                // b) It has a save keyword in filename
-                // c) It is in a directory that looks like a save folder (e.g. "UserData")
-                bool isStrongCandidate = isWhitelistedExt || hasSaveKeyword || isLikelySaveDirectory;
+            scored.Score += CalculateDirectoryVariantMatchScore(group.Dir);
 
-                if (!isStrongCandidate)
-                {
-                    baseScore = 0.1; // Almost ignore
-                }
-            }
-
-            scored.Score += baseScore;
-            scored.VoteCount++;
-
-            // 4. File Quality & Size Score (Full weight now)
-            scored.Score += CalculateSaveFileScore(path, options);
-
-            // 5. Provider Bonus
-            if (candidate.Source == ProviderSource.ETW)
+            if (group.Candidates.Any(c => c.Source == ProviderSource.ETW))
                 scored.Score += options.EtwBonusWeight;
+
+            directoryScores[group.Dir] = scored;
         }
 
-        // --- Filename Similarity Mechanism (Super Bonus) ---
         var similarityWinner = GetSimilarityMechanismWinner(candidates, options);
         if (similarityWinner != null)
         {
             var normalizedSimilarityDir = similarityWinner.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (directoryScores.TryGetValue(normalizedSimilarityDir, out var scored))
             {
-                scored.Score += 1000; // Provide a massive bonus to ensure priority
-                Logger?.Invoke($"[Voting] Filename similarity winner '{similarityWinner}' received a Super Bonus (+1000)", LogLevel.Debug);
+                scored.Score += 500;
+                Logger?.Invoke($"[Voting] Filename similarity winner '{similarityWinner}' received Bonus (+500)", LogLevel.Debug);
             }
         }
 
-        // Post-process directory scores
         foreach (var kvp in directoryScores)
         {
-            var dir = kvp.Value.Path;
-
-            // 4. Variant Matching Score
-            kvp.Value.Score += CalculateDirectoryVariantMatchScore(dir);
-
-            // 5. Path Structure Score
-            kvp.Value.Score += GetPathStructureScore(dir, options);
-
-            Logger?.Invoke($"[Voting] Candidate: {dir} | Score: {kvp.Value.Score} | Votes: {kvp.Value.VoteCount}", LogLevel.Debug);
+            Logger?.Invoke($"[Voting] Candidate: {kvp.Key} | Score: {kvp.Value.Score} | Votes: {kvp.Value.VoteCount}", LogLevel.Debug);
         }
 
         var best = directoryScores.Values
@@ -232,6 +237,23 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         }
 
         return best?.Path;
+    }
+
+    private double CalculateBehaviorScore(List<PathCandidate> candidates)
+    {
+        double score = 0;
+        bool hasWrite = candidates.Any(c => c.Op == IoOperation.Write);
+        bool hasRename = candidates.Any(c => c.Op == IoOperation.Rename);
+
+        if (hasWrite) score += 50;
+        if (hasRename) score += 30;
+        if (hasWrite && hasRename) score += 100;
+
+        var distinctFiles = candidates.Select(c => c.Path).Distinct().Count();
+        if (distinctFiles >= 1 && distinctFiles <= 5) score += 50;
+        else if (distinctFiles > 20) score -= 50;
+
+        return score;
     }
 
     private string? GetSimilarityMechanismWinner(List<PathCandidate> candidates, SaveDetectorOptions options)
@@ -265,9 +287,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
         if (similarities.Count == 0) return null;
 
-        // Take top 2 similarity pairs
         var topTwo = similarities.OrderByDescending(s => s.Sim).Take(2).ToList();
-
         var dirCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in topTwo)
         {
@@ -276,7 +296,6 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         }
 
         int totalInvolvedPaths = topTwo.Count * 2;
-        // Winner must appear in more than half of the involved paths
         var winner = dirCounts.OrderByDescending(x => x.Value).FirstOrDefault(x => x.Value > totalInvolvedPaths / 2);
 
         return winner.Key;
@@ -287,12 +306,10 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         if (string.IsNullOrEmpty(path)) return true;
         if (!string.IsNullOrEmpty(appPath) && path.StartsWith(appPath, StringComparison.OrdinalIgnoreCase)) return true;
 
-        // If the path is inside the game root, we don't apply the blacklist
         if (gameRoot != null && path.StartsWith(gameRoot, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        // Check path blacklist again for directory parts
-        return options.PathBlacklist.Any(b => path.Contains(b, StringComparison.OrdinalIgnoreCase));
+        return IsBlacklisted(path, Constants.ExcludePathKeywords);
     }
 
     private double CalculateSaveFileScore(string filePath, SaveDetectorOptions options)
@@ -300,34 +317,16 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         try
         {
             var fileInfo = new FileInfo(filePath);
-
-            // Hard limit: Save files are almost never > 100MB. 
-            // Most game assets (pac/arc) are huge.
             if (fileInfo.Length > 100 * 1024 * 1024) return -500;
+            if (fileInfo.Length == 0) return -10;
 
             var score = 0.0;
+            if (fileInfo.Length > 100 && fileInfo.Length < 10 * 1024 * 1024) score += 30;
 
-            // Size heuristics
-            if (fileInfo.Length > 1024 && fileInfo.Length < 10 * 1024 * 1024) score += 30;
-            else if (fileInfo.Length > 100 && fileInfo.Length < 50 * 1024 * 1024) score += 20;
-
-            // Time heuristics
-            var timeDiff = DateTime.Now - fileInfo.LastWriteTime;
-            if (timeDiff.TotalMinutes < 10) score += 40;
-            else if (timeDiff.TotalHours < 1) score += 30;
-            else if (timeDiff.TotalDays < 1) score += 20;
-
-            // Keyword heuristics
-            var nameSpan = Path.GetFileName(filePath).AsSpan();
-            foreach (var kw in options.SaveKeywordWhitelist)
+            if (Constants.ContainsSaveKeyword(Path.GetFileName(filePath).AsSpan()))
             {
-                if (nameSpan.IndexOf(kw.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    score += 30;
-                    break;
-                }
+                score += 100;
             }
-
             return score;
         }
         catch { return 0; }
@@ -344,7 +343,6 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         var dirNameSpan = dirName.AsSpan();
         var directorySpan = directory.AsSpan();
 
-        // Exact/Contains Match
         foreach (var variant in _cachedLowerVariants)
         {
             if (string.IsNullOrEmpty(variant)) continue;
@@ -352,114 +350,29 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
             if (dirNameSpan.Equals(variantSpan, StringComparison.OrdinalIgnoreCase))
             {
-                totalScore = Math.Max(totalScore, 500); // Perfect Match
+                totalScore = Math.Max(totalScore, 300);
             }
             else
             {
                 int index = directorySpan.IndexOf(variantSpan, StringComparison.OrdinalIgnoreCase);
                 if (index >= 0)
                 {
-                    // Check boundaries
                     bool startOk = index == 0 || IsSeparator(directory[index - 1]);
                     bool endOk = (index + variant.Length == directory.Length) || IsSeparator(directory[index + variant.Length]);
-
-                    if (startOk && endOk) totalScore = Math.Max(totalScore, 100);
-                    else totalScore = Math.Max(totalScore, 20);
+                    if (startOk && endOk) totalScore = Math.Max(totalScore, 80);
                 }
             }
         }
 
-        // Fuzzy Match
         if (_fuzzyMatchCoreVariants != null)
         {
             foreach (var core in _fuzzyMatchCoreVariants)
             {
-                if (JaroWinkler(dirNameSpan, core) > 0.8)
-                {
-                    totalScore = Math.Max(totalScore, 400);
-                }
+                if (JaroWinkler(dirNameSpan, core) > 0.8) totalScore = Math.Max(totalScore, 200);
             }
         }
 
         return totalScore;
-    }
-
-    private int GetPathStructureScore(string directory, SaveDetectorOptions options)
-    {
-        var score = 0;
-        var dirSpan = directory.AsSpan();
-
-        // Save Directory Suffixes
-        foreach (var suffix in options.SaveDirectorySuffixPatterns)
-        {
-            if (dirSpan.EndsWith(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase)) score += 6;
-            else if (dirSpan.IndexOf(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += 4;
-        }
-
-        // Chinese Suffixes (Higher weight)
-        foreach (var suffix in options.ChineseLocalizationSuffixes)
-        {
-            if (dirSpan.IndexOf(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += 12;
-        }
-
-        // Common Patterns like "AppData"
-        if (dirSpan.IndexOf("appdata".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += 8;
-        if (dirSpan.IndexOf("saved games".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += 10;
-
-        return score;
-    }
-
-    private void PrecomputeVariants(Galgame game)
-    {
-        var variants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Generate basic variants
-        GenerateNameVariants(game.Name?.Value, variants);
-        GenerateNameVariants(game.ChineseName, variants);
-        GenerateNameVariants(game.OriginalName?.Value, variants);
-        GenerateNameVariants(game.Developer?.Value, variants);
-
-        if (game.Categories != null)
-        {
-            foreach (var cat in game.Categories)
-                if (!string.IsNullOrEmpty(cat.Name)) GenerateNameVariants(cat.Name, variants);
-        }
-
-        _cachedLowerVariants = variants
-            .Where(v => !string.IsNullOrEmpty(v))
-            .Select(v => v.ToLowerInvariant())
-            .Distinct()
-            .ToList();
-
-        // Generate core variants for fuzzy matching
-        var coreNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (game.Name?.Value is { } n) coreNames.Add(n);
-        if (!string.IsNullOrEmpty(game.ChineseName)) coreNames.Add(game.ChineseName!);
-        if (game.OriginalName?.Value is { } o) coreNames.Add(o);
-
-        _fuzzyMatchCoreVariants = coreNames
-            .Where(v => !string.IsNullOrEmpty(v))
-            .Select(v => v.ToLowerInvariant())
-            .Distinct()
-            .ToList();
-    }
-
-    private void GenerateNameVariants(string? name, HashSet<string> variants)
-    {
-        if (string.IsNullOrEmpty(name)) return;
-        variants.Add(name);
-
-        // Split by separators
-        var separators = new[] { ' ', '_', '-', '.' };
-        foreach (var sep in separators)
-        {
-            if (name.Contains(sep))
-            {
-                var parts = name.Split(sep, StringSplitOptions.RemoveEmptyEntries);
-                variants.Add(string.Join("", parts)); // No separator
-                variants.Add(string.Join(" ", parts)); // Space
-            }
-        }
     }
 
     private static bool IsSeparator(char c) => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar;

@@ -3,26 +3,161 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace PotatoVN.App.PluginBase.SaveDetection.Models;
 
-public class SaveDetectorOptions
+/// <summary>
+/// 存档检测相关的常量定义
+/// </summary>
+public static class Constants
 {
-    // 性能配置
-    public int MaxQueueSize { get; init; } = 1000;
-    public int AnalysisIntervalMs { get; init; } = 1500;
+    /// <summary>
+    /// 存档文件扩展名（不带点号）
+    /// </summary>
+    public static readonly HashSet<string> SaveFileExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "sav", "dat", "save", "sfs", "rpgsave", "rvdata", "rvdata2",
+        "json", "xml", "yaml", "yml", "cfg", "config", "backup"
+    };
 
-    // 投票阈值
-    public int MinVoteCountThreshold { get; init; } = 1;
-    public float ConfidenceScoreThreshold { get; init; } = 12.0f;
+    /// <summary>
+    /// 存档文件关键词
+    /// </summary>
+    public static readonly HashSet<string> SaveFileKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "save", "sav", "slot", "data", "record", "progress", "file",
+        "state", "status", "profile", "account", "user", "game",
+        "session", "checkpoint", "quick", "auto"
+    };
 
-    // 权值分配
-    public float EtwBonusWeight { get; init; } = 2.0f;
-    public float KeywordBonusWeight { get; init; } = 5.0f;
+    /// <summary>
+    /// 特定游戏开发商的已知变体
+    /// </summary>
+    public static readonly Dictionary<string, List<string>> DeveloperVariants = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["asa"] = new List<string>
+        {
+            "asaproject", "asa project", "asa_project", "asa-project",
+            "AsaProject", "ASA Project", "ASA_PROJECT", "asaproj",
+            "asa_proj", "asa-proj", "AsaProj", "asaprojects",
+            "asa projects", "asa_projects", "asa-projects"
+        },
+        ["key"] = new List<string>
+        {
+            "key", "visualarts", "visual arts", "visual_arts"
+        },
+        ["typemoon"] = new List<string>
+        {
+            "typemoon", "type-moon", "type_moon"
+        }
+    };
 
-    // 路径黑名单（包含这些关键词的路径将被跳过）
-    public string[] PathBlacklist { get; init; } = {
+    /// <summary>
+    /// 常见词汇的简化映射
+    /// </summary>
+    public static readonly Dictionary<string, List<string>> WordSimplifications = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["project"] = new List<string> { "proj", "p" },
+        ["game"] = new List<string> { "gm" },
+        ["visual"] = new List<string> { "vis" },
+        ["novel"] = new List<string> { "vn", "nov" },
+        ["story"] = new List<string> { "stry", "st" },
+        ["adventure"] = new List<string> { "adv", "adven" },
+        ["chronicles"] = new List<string> { "chron", "chr" },
+        ["legend"] = new List<string> { "leg", "lgd" },
+        ["fantasy"] = new List<string> { "fan", "fnt" },
+        ["world"] = new List<string> { "wrld", "wd" }
+    };
+
+    /// <summary>
+    /// 日语词汇的罗马音映射
+    /// </summary>
+    public static readonly Dictionary<string, List<string>> JapaneseMappings = new()
+    {
+        ["プロジェクト"] = new List<string> { "project", "purojekuto" },
+        ["ウォーズ"] = new List<string> { "wars", "waruzu" },
+        ["ストーリー"] = new List<string> { "story", "story", "sutori" },
+        ["ファンタジー"] = new List<string> { "fantasy", "fantesi" },
+        ["アドベンチャー"] = new List<string> { "adventure", "adobencha" },
+        ["クロニクル"] = new List<string> { "chronicle", "kuronikuru" }
+    };
+
+    /// <summary>
+    /// 数字映射（阿拉伯数字转中文）
+    /// </summary>
+    public static readonly Dictionary<string, string> NumberMappings = new()
+    {
+        ["0"] = "零",
+        ["1"] = "一",
+        ["2"] = "二",
+        ["3"] = "三",
+        ["4"] = "四",
+        ["5"] = "五",
+        ["6"] = "六",
+        ["7"] = "七",
+        ["8"] = "八",
+        ["9"] = "九",
+        ["10"] = "十"
+    };
+
+    /// <summary>
+    /// 常见的存档目录模式
+    /// </summary>
+    public static readonly string[] SaveDirectoryPatterns =
+    {
+        "save", "saves", "savedata", "save_data", "userdata", "user_data",
+        "data", "game", "games", "appdata", "local", "roaming"
+    };
+
+    /// <summary>
+    /// 汉化文件夹后缀模式（用于识别汉化版本的存档目录）
+    /// </summary>
+    public static readonly string[] ChineseLocalizationSuffixes =
+    {
+        "chs", "cht", "cn", "zh", "zhcn", "zhtw", "sc", "tc", "chinese",
+        "简体", "繁体", "中文", "汉化", "汉化版", "steam简中"
+    };
+
+    /// <summary>
+    /// 存档目录常见末尾字符模式（用于更灵活的匹配）
+    /// </summary>
+    public static readonly string[] SaveDirectorySuffixPatterns =
+    {
+        "data", "save", "saves", "games", "game", "user", "profile", "config",
+        "settings", "storage", "backup", "cache", "temp", "local", "roaming",
+        "存档", "保存", "数据", "配置", "设置", "档案", "记录", "进度",
+        "system", "content", "resources", "assets", "files", "documents",
+        "セーブ", "データ", "設定", "システム", "コンフィグ"
+    };
+
+    /// <summary>
+    /// 特殊路径加分配置
+    /// </summary>
+    public static readonly Dictionary<string, int> SpecialPathScores = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["appdata\\roaming"] = 15,
+        ["appdata\\local"] = 12,
+        ["my games"] = 10,
+        ["saved games"] = 10
+    };
+
+    /// <summary>
+    /// 分隔符定义
+    /// </summary>
+    public static readonly char[] Separators = { ' ', '_', '-', '.', '\0' };
+
+    /// <summary>
+    /// 当前分隔符（用于分割）
+    /// </summary>
+    public static readonly char[] CurrentSeparators = { ' ', '_', '-', '.' };
+
+    /// <summary>
+    /// 排除路径关键词（这些路径通常包含程序文件而非存档文件）
+    /// </summary>
+    public static readonly HashSet<string> ExcludePathKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
         // PotatoVN相关路径
         "potatovn", ".potatovn", "potato vn", "potato-vn", "potato_vn",
 
@@ -63,81 +198,122 @@ public class SaveDetectorOptions
 
         // 其他系统工具
         "powershell", "cmd", "sysnative", "tasks", "startup", "start menu", "desktop", "wallpaper",
-
-        // 其他软件
         "scoop", "chocolatey", "winget", "TrafficMonitor", "ditto",
 
         // 游戏资源相关目录
         "pac", "movie", "bgm", "voice", "sound", "media", "plugin", "plugins"
     };
 
-    // 文件后缀黑名单
-    public string[] ExtensionBlacklist { get; init; } = {
+    /// <summary>
+    /// 文件后缀黑名单
+    /// </summary>
+    public static readonly string[] ExtensionBlacklist = {
         ".exe", ".dll", ".lnk", ".ini", ".log", ".tmp", ".pdb", ".msi",
-        // 游戏资源文件后缀 (音频/视频/压缩包)
         ".ypf", ".arc", ".pak", ".xp3", ".dat", ".bin", ".ogg", ".wav", ".mp4", ".wmv", ".bik",
-        // 图像/字体/UI资源 (新增)
         ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".svg", ".ico", ".ttf", ".otf", ".woff", ".woff2"
     };
 
-    // 存档文件后缀白名单
-    public string[] SaveExtensionWhitelist { get; init; } = {
-        "sav", "dat", "save", "sfs", "rpgsave", "rvdata", "rvdata2",
-        "json", "xml", "yaml", "yml", "cfg", "config", "backup"
-    };
-
-    // 存档关键词白名单（文件名或目录名包含这些词加分）
-    public string[] SaveKeywordWhitelist { get; init; } = {
-        "save", "sav", "slot", "data", "record", "progress", "file",
-        "state", "status", "profile", "account", "user", "game",
-        "session", "checkpoint", "quick", "auto"
-    };
-
-    // 存档目录后缀模式（用于更灵活的匹配加分）
-    public string[] SaveDirectorySuffixPatterns { get; init; } = {
-        "data", "save", "saves", "games", "game", "user", "profile", "config",
-        "settings", "storage", "backup", "cache", "temp", "local", "roaming",
-        "存档", "保存", "数据", "配置", "设置", "档案", "记录", "进度",
-        "system", "content", "resources", "assets", "files", "documents",
-        "セーブ", "データ", "設定", "システム", "コンフィグ"
-    };
-
-    // 汉化文件夹后缀模式
-    public string[] ChineseLocalizationSuffixes { get; init; } = {
-        "chs", "cht", "cn", "zh", "zhcn", "zhtw", "sc", "tc", "chinese",
-        "简体", "繁体", "中文", "汉化", "汉化版", "steam简中"
-    };
-
-    // 通用系统根目录（这些目录会被监视，但不应作为最终结果返回）
-    public HashSet<string> GenericRoots { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-    public SaveDetectorOptions()
+    public static HashSet<string> GetGenericRoots()
     {
-        // 初始化通用根目录
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             void AddRoot(string path)
             {
                 if (!string.IsNullOrEmpty(path))
-                    GenericRoots.Add(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                    roots.Add(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             }
-
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-            
-            // LocalLow (Common for Unity games)
             var localLow = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)?.Replace("Local", "LocalLow");
             AddRoot(localLow ?? "");
-
-            // Common subfolders
             AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games"));
             AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Saved Games"));
             AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Saved Games"));
         }
-        catch { /* Ignore environment errors */ }
+        catch { { } }
+        return roots;
     }
+
+    public static bool IsSaveFileExtension(ReadOnlySpan<char> extension)
+    {
+        if (extension.Length == 0) return false;
+        return SaveFileExtensions.Contains(extension.ToString());
+    }
+
+    public static bool ContainsSaveKeyword(ReadOnlySpan<char> fileName)
+    {
+        if (fileName.Length == 0) return false;
+        foreach (var keyword in SaveFileKeywords)
+        {
+            if (fileName.Contains(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    public static int GetPathStructureScore(ReadOnlySpan<char> directory)
+    {
+        var score = 0;
+        foreach (var pattern in SaveDirectoryPatterns)
+        {
+            if (directory.IndexOf(pattern.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += 8;
+        }
+        foreach (var suffix in ChineseLocalizationSuffixes)
+        {
+            if (directory.EndsWith(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase) ||
+                directory.IndexOf($"_{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0 ||
+                directory.IndexOf($"-{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                score += 12;
+            }
+        }
+        foreach (var suffix in SaveDirectorySuffixPatterns)
+        {
+            if (directory.EndsWith(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase)) score += 6;
+            else if (directory.IndexOf($"_{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     directory.IndexOf($"-{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     directory.IndexOf($".{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                score += 4;
+            }
+        }
+        foreach (var pattern in SpecialPathScores)
+        {
+            if (directory.IndexOf(pattern.Key.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += pattern.Value;
+        }
+        return score;
+    }
+
+    public static bool ShouldExcludePath(ReadOnlySpan<char> targetPath, string currentAppPath)
+    {
+        if (targetPath.IsEmpty || string.IsNullOrEmpty(currentAppPath)) return false;
+        if (targetPath.StartsWith(currentAppPath.AsSpan(), StringComparison.OrdinalIgnoreCase)) return true;
+        foreach (var keyword in ExcludePathKeywords)
+        {
+            if (targetPath.IndexOf(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        return false;
+    }
+}
+
+public class SaveDetectorOptions
+{
+    // 性能配置
+    public int MaxQueueSize { get; init; } = 1000;
+    public int AnalysisIntervalMs { get; init; } = 1500;
+
+    // 投票阈值
+    public int MinVoteCountThreshold { get; init; } = 1;
+    public float ConfidenceScoreThreshold { get; init; } = 12.0f;
+
+    // 权值分配
+    public float EtwBonusWeight { get; init; } = 2.0f;
+    public float KeywordBonusWeight { get; init; } = 5.0f;
+
+    // 通用系统根目录（这些目录会被监视，但不应作为最终结果返回）
+    public HashSet<string> GenericRoots { get; } = Constants.GetGenericRoots();
 
     public bool AllowEtw { get; init; } = true;
 
@@ -174,18 +350,17 @@ internal class NullLogger : ISaveDetectorLogger { public void Log(string m, LogL
 
 public class DetectionContext
 {
-    public Process TargetProcess { get; }
+    public System.Diagnostics.Process TargetProcess { get; }
     public CancellationToken Token { get; }
     public SaveDetectorOptions Settings { get; }
     public ConcurrentQueue<PathCandidate> Candidates { get; } = new();
     public string? FinalPath { get; set; }
     private readonly ISaveDetectorLogger _logger;
 
-    // Extra context needed for FileSystemWatcherProvider
     public GalgameManager.Models.Galgame? Game { get; set; }
     public ISaveCandidateProvider? ActiveProvider { get; set; }
 
-    public DetectionContext(Process p, CancellationToken t, ISaveDetectorLogger logger, SaveDetectorOptions? s = null)
+    public DetectionContext(System.Diagnostics.Process p, CancellationToken t, ISaveDetectorLogger logger, SaveDetectorOptions? s = null)
     {
         TargetProcess = p; Token = t; _logger = logger;
         Settings = s ?? new SaveDetectorOptions();
