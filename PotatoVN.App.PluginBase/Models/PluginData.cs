@@ -17,4 +17,15 @@ public partial class PluginData : ObservableRecipient
     /// 是否尝试使用管理员权限（ETW）进行检测
     /// </summary>
     [ObservableProperty] private bool _useAdminMode = false;
+
+    private bool? _originalAutoDetectValue;
+    /// <summary>
+    /// 原始的自动检测存档设置
+    /// </summary>
+    [System.Text.Json.Serialization.JsonInclude]
+    public bool? OriginalAutoDetectValue
+    {
+        get => _originalAutoDetectValue;
+        set => SetProperty(ref _originalAutoDetectValue, value);
+    }
 }

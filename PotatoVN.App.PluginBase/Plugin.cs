@@ -26,8 +26,7 @@ public partial class Plugin : IPlugin, IPluginSetting
     {
         get
         {
-            if (_resourceManager == null)
-                _resourceManager = new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
+            _resourceManager ??= new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
             return _resourceManager;
         }
     }
@@ -89,6 +88,9 @@ public partial class Plugin : IPlugin, IPluginSetting
         {
             Debug.WriteLine($"[Plugin] Language Setup Error: {ex}");
         }
+
+        await PluginPatch.InitializeAsync(_data);
+        SaveData();
 
         _hostApi.Messenger.Register<GalgamePlayedMessage>(this, (r, m) =>
         {
@@ -153,6 +155,11 @@ public partial class Plugin : IPlugin, IPluginSetting
         {
             Debug.WriteLine($"[Plugin] Restart failed: {ex.Message}");
         }
+    }
+
+    public async Task OnUninstallAsync(bool deleteData, Action<TimeSpan> extendWaitHandler, System.Threading.CancellationToken cts)
+    {
+        await PluginPatch.RestoreAsync();
     }
 
     protected Guid Id => Info.Id;
