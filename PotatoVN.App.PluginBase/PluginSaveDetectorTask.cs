@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.Messaging;
 using GalgameManager.Helpers;
 using GalgameManager.Models;
 using GalgameManager.Models.BgTasks;
+using Microsoft.Windows.AppNotifications;
+using Microsoft.Windows.AppNotifications.Builder;
 using PotatoVN.App.PluginBase.SaveDetection;
 using PotatoVN.App.PluginBase.SaveDetection.Models;
 using PotatoVN.App.PluginBase.SaveDetection.Pipeline;
@@ -109,6 +111,8 @@ public class PluginSaveDetectorTask : BgTaskBase
                 string msg = string.Format(msgTemplate, context.FinalPath);
 
                 ChangeProgress(1, 1, msg, true);
+
+                ShowNotification(Title, msg);
             }
             else
             {
@@ -178,6 +182,23 @@ public class PluginSaveDetectorTask : BgTaskBase
             await Task.Delay(1000);
         }
         return null;
+    }
+
+    private void ShowNotification(string title, string message)
+    {
+        try
+        {
+            var notification = new AppNotificationBuilder()
+                .AddText(title)
+                .AddText(message)
+                .BuildNotification();
+
+            AppNotificationManager.Default.Show(notification);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PluginSaveDetectorTask] Failed to show notification: {ex.Message}");
+        }
     }
 
     /// <summary>
