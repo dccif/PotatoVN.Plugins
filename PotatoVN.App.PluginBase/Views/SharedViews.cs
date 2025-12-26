@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Input;
 using System;
 using System.Collections.Generic;
 
@@ -88,7 +87,7 @@ public class BigScreenFooter : Grid
         foreach (var (key, action) in hints)
         {
             var item = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            
+
             // Key Badge (Visual representation of the button/key)
             var keyBorder = new Border
             {
@@ -97,7 +96,7 @@ public class BigScreenFooter : Grid
                 Padding = new Thickness(8, 2, 8, 2),
                 MinWidth = 24
             };
-            
+
             var keyText = new TextBlock
             {
                 Text = key,
@@ -119,7 +118,7 @@ public class BigScreenFooter : Grid
 
             item.Children.Add(keyBorder);
             item.Children.Add(actionText);
-            
+
             _hintStack.Children.Add(item);
         }
     }

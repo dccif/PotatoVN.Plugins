@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace PotatoVN.App.PluginBase.Controls.Prefabs
@@ -15,10 +15,10 @@ namespace PotatoVN.App.PluginBase.Controls.Prefabs
             get => _descriptionText.Text;
             set => _descriptionText.Text = value;
         }
-        
+
         private readonly TextBlock _titleText;
         private readonly TextBlock _descriptionText;
-        
+
         public StdSetting(string title, string description, FrameworkElement rightContent)
         {
             rightContent.HorizontalAlignment = HorizontalAlignment.Right;
@@ -40,7 +40,7 @@ namespace PotatoVN.App.PluginBase.Controls.Prefabs
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8, GridUnitType.Star) });
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            
+
             //左侧
             root.Children.Add(leftStack);
             Grid.SetColumn(leftStack, 0);
@@ -54,7 +54,7 @@ namespace PotatoVN.App.PluginBase.Controls.Prefabs
 
             Content = root;
         }
-        
+
         private static void TryApplyStyle(FrameworkElement fe, string key)
         {
             if (Application.Current?.Resources != null &&

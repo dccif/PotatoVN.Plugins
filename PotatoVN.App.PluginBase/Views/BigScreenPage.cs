@@ -1,25 +1,25 @@
 using CommunityToolkit.Mvvm.Messaging;
 using GalgameManager.Models;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using PotatoVN.App.PluginBase.Messages;
-using System.Collections.Generic;
-using System;
-using System.Reflection;
-using HarmonyLib;
-using System.Threading.Tasks;
-using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
 using GalgameManager.WinApp.Base.Contracts.NavigationApi;
+using GalgameManager.WinApp.Base.Contracts.NavigationApi.NavigateParameters;
 using GalgameManager.WinApp.Base.Models.Msgs;
+using HarmonyLib;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using PotatoVN.App.PluginBase.Messages;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
-using Windows.Gaming.Input;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using Windows.Gaming.Input;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -29,7 +29,7 @@ public sealed partial class BigScreenPage : Page
     private readonly ContentControl _mainLayer;
     private readonly ContentControl _overlayLayer;
     private readonly BigScreenNavigator _navigator;
-    
+
     private readonly List<Galgame> _games;
     private readonly Window _parentWindow;
     private readonly DispatcherQueue _dispatcher;
@@ -55,10 +55,10 @@ public sealed partial class BigScreenPage : Page
         _rootGrid = new Grid();
         _mainLayer = new ContentControl { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
         _overlayLayer = new ContentControl { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Visibility = Visibility.Collapsed };
-        
+
         _rootGrid.Children.Add(_mainLayer);
         _rootGrid.Children.Add(_overlayLayer);
-        
+
         Content = _rootGrid;
         Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
 
@@ -109,7 +109,7 @@ public sealed partial class BigScreenPage : Page
             }
         });
 
-        Loaded += (s, e) => 
+        Loaded += (s, e) =>
         {
             _navigator.Navigate(BigScreenRoute.Home);
 
@@ -120,13 +120,13 @@ public sealed partial class BigScreenPage : Page
 
             StartGamepadPolling();
         };
-        
+
         Unloaded += (s, e) =>
         {
             WeakReferenceMessenger.Default.UnregisterAll(this);
             StopGamepadPolling();
         };
-        
+
         // Handle input even if controls mark it handled, to keep footer hints in sync.
         AddHandler(KeyDownEvent, new KeyEventHandler(BigScreenPage_KeyDown), true);
     }
@@ -506,12 +506,12 @@ public sealed partial class BigScreenPage : Page
 
         return root;
     }
-    
+
     private async void SyncToHost(Galgame game)
     {
         if (Plugin.HostApi != null)
         {
-             try
+            try
             {
                 var assembly = Assembly.Load("GalgameManager");
                 var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
@@ -717,7 +717,7 @@ public sealed partial class BigScreenPage : Page
             {
 #pragma warning disable CS8600
 #pragma warning disable CS8602
-                await (Task)invokeMethod.Invoke(null, [ new Action(() => InvokeHostBack()) ]);
+                await (Task)invokeMethod.Invoke(null, [new Action(() => InvokeHostBack())]);
 #pragma warning restore CS8602
 #pragma warning restore CS8600
             }

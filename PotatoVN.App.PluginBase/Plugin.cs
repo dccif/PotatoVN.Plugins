@@ -1,15 +1,15 @@
+using GalgameManager.Enums;
 using GalgameManager.WinApp.Base.Contracts;
 using GalgameManager.WinApp.Base.Contracts.PluginUi;
 using GalgameManager.WinApp.Base.Models;
+using HarmonyLib;
 using PotatoVN.App.PluginBase.Models;
 using PotatoVN.App.PluginBase.Patches;
-using HarmonyLib;
 using System;
 using System.Diagnostics;
-using System.Threading.Tasks;
-using System.Resources;
 using System.Globalization;
-using GalgameManager.Enums;
+using System.Resources;
+using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase;
 

@@ -24,11 +24,11 @@ public partial class HomeViewModel : ObservableObject
         // Take top 10 for the horizontal scroll
         var topRecent = new List<Galgame>();
         int count = 0;
-        foreach(var g in recentList)
+        foreach (var g in recentList)
         {
-             if(count >= 10) break;
-             topRecent.Add(g);
-             count++;
+            if (count >= 10) break;
+            topRecent.Add(g);
+            count++;
         }
         RecentGames = new ObservableCollection<Galgame>(topRecent);
 

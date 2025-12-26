@@ -1,15 +1,14 @@
-using Microsoft.UI.Xaml.Controls;
-using PotatoVN.App.PluginBase.ViewModels;
 using GalgameManager.Models;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI;
-using Windows.UI;
-using System;
+using Microsoft.UI.Xaml.Media;
+using PotatoVN.App.PluginBase.ViewModels;
 using System.Collections.Generic;
 using System.IO;
+using Windows.UI;
 
 namespace PotatoVN.App.PluginBase.Views;
 
@@ -79,16 +78,16 @@ public sealed class DetailPage : Page, IBigScreenPage
 
         // Meta Info (Developer, Rating)
         var metaStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 20 };
-        
+
         // Helper to create info items
         UIElement CreateInfo(string label, Binding valueBinding)
         {
-             var s = new StackPanel();
-             s.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)) });
-             var v = new TextBlock { FontSize = 16, Foreground = new SolidColorBrush(Colors.White) };
-             v.SetBinding(TextBlock.TextProperty, valueBinding);
-             s.Children.Add(v);
-             return s;
+            var s = new StackPanel();
+            s.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)) });
+            var v = new TextBlock { FontSize = 16, Foreground = new SolidColorBrush(Colors.White) };
+            v.SetBinding(TextBlock.TextProperty, valueBinding);
+            s.Children.Add(v);
+            return s;
         }
 
         var devBinding = new Binding { Path = new PropertyPath("Game.Developer.Value"), Mode = BindingMode.OneWay };
@@ -101,7 +100,7 @@ public sealed class DetailPage : Page, IBigScreenPage
 
         // Buttons
         var btnStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 20 };
-        
+
         _playBtn = new Button
         {
             Content = "PLAY",
@@ -151,11 +150,11 @@ public sealed class DetailPage : Page, IBigScreenPage
 
             // Set DataContext for meta info
             contentContainer.DataContext = ViewModel;
-            
+
             _playBtn.Command = ViewModel.PlayCommand;
             _playBtn.IsEnabled = IsPlayable(ViewModel.Game);
-            
-             // Initial Focus
+
+            // Initial Focus
             _playBtn.Focus(FocusState.Programmatic);
         };
 

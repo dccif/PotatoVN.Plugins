@@ -1,8 +1,8 @@
+using GalgameManager.Models;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
 using System;
 using System.Collections.Generic;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Windowing;
-using GalgameManager.Models;
 using System.Runtime.InteropServices;
 
 namespace PotatoVN.App.PluginBase.Views;

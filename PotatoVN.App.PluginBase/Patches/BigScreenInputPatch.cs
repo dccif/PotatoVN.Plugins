@@ -1,17 +1,16 @@
 using HarmonyLib;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using PotatoVN.App.PluginBase.Views;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.InteropServices;
 using Windows.Foundation;
-using PotatoVN.App.PluginBase.Views;
-using PotatoVN.App.PluginBase.Models;
-using System.Collections;
 
 namespace PotatoVN.App.PluginBase.Patches;
 
@@ -153,7 +152,7 @@ public static class BigScreenActionHandler
 
             // Stop Gamepad
             _cts?.Cancel();
-            
+
             _activePage = null;
             _dispatcher = null;
         }
@@ -173,7 +172,7 @@ public static class BigScreenActionHandler
         {
             if (_activePage != null)
             {
-                 _dispatcher?.TryEnqueue(() => OpenBigScreen(_activePage));
+                _dispatcher?.TryEnqueue(() => OpenBigScreen(_activePage));
             }
             e.Handled = true;
         }
@@ -218,7 +217,7 @@ public static class BigScreenActionHandler
             {
                 if (isPressed && !wasPressed)
                 {
-                    _dispatcher?.TryEnqueue(() => 
+                    _dispatcher?.TryEnqueue(() =>
                     {
                         if (_activePage != null) OpenBigScreen(_activePage);
                     });
@@ -323,7 +322,7 @@ public static class BigScreenActionHandler
             // 3. Fetch Games
             List<GalgameManager.Models.Galgame> games = new();
             GalgameManager.Models.Galgame? initialGame = null;
-            
+
             try
             {
                 // Try get initial game
@@ -387,10 +386,10 @@ public static class BigScreenActionHandler
             // Re-attach when window closes
             window.Closed += (s, e) =>
             {
-                 // Re-attach to the original page if still valid
-                 // Note: 'page' might be dead if navigated away, but simple re-attach safe
-                 Attach(page);
-                 Interlocked.Exchange(ref _isOpening, 0);
+                // Re-attach to the original page if still valid
+                // Note: 'page' might be dead if navigated away, but simple re-attach safe
+                Attach(page);
+                Interlocked.Exchange(ref _isOpening, 0);
             };
         }
         catch (Exception ex)

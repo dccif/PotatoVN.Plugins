@@ -1,26 +1,26 @@
-using Microsoft.UI.Xaml.Controls;
-using PotatoVN.App.PluginBase.ViewModels;
 using GalgameManager.Models;
-using System.Collections.Generic;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
-using System;
-using PotatoVN.App.PluginBase.Views.Controls;
-using Windows.UI;
+using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using System.Numerics;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Microsoft.UI;
+using PotatoVN.App.PluginBase.ViewModels;
+using PotatoVN.App.PluginBase.Views.Controls;
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Windows.UI;
 
 namespace PotatoVN.App.PluginBase.Views;
 
 public sealed class HomePage : Page, IBigScreenPage
 {
     public HomeViewModel? ViewModel { get; private set; }
-    
+
     // UI Elements
     private StackPanel _recentListPanel;
     private GridView _libraryGridView;
@@ -53,8 +53,8 @@ public sealed class HomePage : Page, IBigScreenPage
         _footer = scaffold.Footer;
 
         // Main Content ScrollViewer (Vertical)
-        _mainScroll = new ScrollViewer 
-        { 
+        _mainScroll = new ScrollViewer
+        {
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             IsTabStop = false // Important: Don't take focus
@@ -96,7 +96,7 @@ public sealed class HomePage : Page, IBigScreenPage
             Padding = new Thickness(54, 0, 60, 20),
             IsTabStop = false // Don't take focus
         };
-        
+
         _recentListPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -176,13 +176,13 @@ public sealed class HomePage : Page, IBigScreenPage
         // Logic
         PopulateRecentGames();
         UpdateFocusMap();
-        
+
         var binding = new Binding { Source = ViewModel, Path = new PropertyPath("LibraryGames"), Mode = BindingMode.OneWay };
         BindingOperations.SetBinding(_libraryGridView, ItemsControl.ItemsSourceProperty, binding);
 
-        _libraryGridView.ItemClick += (s, e) => 
+        _libraryGridView.ItemClick += (s, e) =>
         {
-             if (e.ClickedItem is Galgame g && ViewModel != null) ViewModel.ItemClickCommand.Execute(g);
+            if (e.ClickedItem is Galgame g && ViewModel != null) ViewModel.ItemClickCommand.Execute(g);
         };
 
         _libraryGridView.ContainerContentChanging += (s, e) =>
@@ -201,7 +201,7 @@ public sealed class HomePage : Page, IBigScreenPage
         {
             XamlRoot.Changed += (s, e) => UpdateLibraryItemSize();
         }
-        
+
         // Auto-center library items vertically
         _libraryGridView.GotFocus += (s, e) =>
         {
@@ -228,7 +228,7 @@ public sealed class HomePage : Page, IBigScreenPage
             this.KeyDown += OnKeyDown;
 
             await System.Threading.Tasks.Task.Delay(100);
-            
+
             if (_lastFocusedControl == null)
             {
                 FocusInitial();
@@ -313,7 +313,7 @@ public sealed class HomePage : Page, IBigScreenPage
     private void FocusRecentItem(int index)
     {
         if (index < 0 || index >= _recentListPanel.Children.Count) return;
-        
+
         var target = _recentListPanel.Children[index] as Control;
         if (target != null)
         {
@@ -752,14 +752,14 @@ public sealed class HomePage : Page, IBigScreenPage
         {
             var transform = element.TransformToVisual(scroll);
             var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
-            
+
             double scrollCenter = scroll.HorizontalOffset + (scroll.ViewportWidth / 2);
             double itemCenter = scroll.HorizontalOffset + rect.X + (rect.Width / 2);
             double offset = itemCenter - (scroll.ViewportWidth / 2);
-            
+
             scroll.ChangeView(offset, null, null);
         }
-        catch {}
+        catch { }
     }
 
     private void CenterVerticalInMainScroll(FrameworkElement element)
@@ -768,21 +768,21 @@ public sealed class HomePage : Page, IBigScreenPage
         {
             var transform = element.TransformToVisual(_mainScroll);
             var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
-            
+
             double relativeCenterY = rect.Y + (rect.Height / 2);
             double targetRelativeY = _mainScroll.ViewportHeight / 2;
-            
+
             double delta = relativeCenterY - targetRelativeY;
             double targetOffset = _mainScroll.VerticalOffset + delta;
-            
+
             targetOffset = Math.Max(0, Math.Min(targetOffset, _mainScroll.ScrollableHeight));
-            
+
             if (Math.Abs(delta) > 10)
             {
                 _mainScroll.ChangeView(null, targetOffset, null);
             }
         }
-        catch {}
+        catch { }
     }
 
     private bool IsAtTopRow(GridViewItem item)
@@ -801,7 +801,7 @@ public sealed class HomePage : Page, IBigScreenPage
 
     private void RefreshHints(InputDeviceType type)
     {
-         if (type == InputDeviceType.Gamepad)
+        if (type == InputDeviceType.Gamepad)
         {
             _footer.UpdateHints(new List<(string, string)>
             {
