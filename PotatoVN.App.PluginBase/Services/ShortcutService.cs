@@ -1,17 +1,17 @@
+using GalgameManager.Models;
+using GalgameManager.WinApp.Base.Contracts;
+using Microsoft.UI.Xaml.Controls;
+using Newtonsoft.Json;
+using PotatoVN.App.PluginBase.Helper;
+using PotatoVN.App.PluginBase.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Net.Http;
-using Newtonsoft.Json;
+using System.Text;
 using System.Threading.Tasks;
-using PotatoVN.App.PluginBase.Helper;
-using PotatoVN.App.PluginBase.Models;
-using GalgameManager.WinApp.Base.Contracts;
-using Microsoft.UI.Xaml.Controls;
-using GalgameManager.Models;
 
 namespace PotatoVN.App.PluginBase.Services;
 
@@ -435,7 +435,7 @@ public static class ShortcutService
         var tempJsonPath = Path.GetTempFileName();
         var tempScriptPath = Path.ChangeExtension(Path.GetTempFileName(), ".ps1");
         var resultPath = Path.GetTempFileName();
-        
+
         try
         {
             // 1. Write JSON content to a temporary file
@@ -450,7 +450,7 @@ public static class ShortcutService
             sb.AppendLine("try {");
             sb.AppendLine($"    $destJson = \"{destinationPath}\"");
             sb.AppendLine($"    $sourceJson = \"{tempJsonPath}\"");
-            
+
             // Copy JSON
             sb.AppendLine("    Copy-Item -Path $sourceJson -Destination $destJson -Force");
 
@@ -461,10 +461,10 @@ public static class ShortcutService
                 sb.AppendLine($"    $targetImgName = \"{targetImageFileName}\"");
                 sb.AppendLine("    $configDir = Split-Path $destJson -Parent");
                 sb.AppendLine("    $coversDir = Join-Path $configDir \"covers\"");
-                
+
                 // Ensure covers directory exists
                 sb.AppendLine("    if (-not (Test-Path $coversDir)) { New-Item -ItemType Directory -Path $coversDir -Force | Out-Null }");
-                
+
                 sb.AppendLine("    $destImg = Join-Path $coversDir $targetImgName");
 
                 // Copy Image and Delete Original
@@ -473,7 +473,7 @@ public static class ShortcutService
                 sb.AppendLine("        Remove-Item -Path $sourceImg -Force");
                 sb.AppendLine("    }");
             }
-            
+
             // Signal Success
             sb.AppendLine($"    \"SUCCESS\" | Out-File -FilePath \"{resultPath}\" -Encoding UTF8");
             sb.AppendLine("} catch {");

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -94,7 +93,7 @@ public static class IconHelper
             // 1. Try GDI with Quality priority (Try 256x256 first)
             // This fixes the "icon too small" issue while still being faster than TryExtractResource
             if (ExtractWithGdi(exePath, outputPath, asPng: false, prioritizeSpeed: false)) return true;
-            
+
             // 2. Fallback to raw resource (only if GDI failed completely)
             return TryExtractResource(exePath, outputPath, asPng: false);
         });
@@ -198,7 +197,7 @@ public static class IconHelper
         IntPtr hIcon = IntPtr.Zero;
         bool createdHandle = false;
 
-        try 
+        try
         {
             if (prioritizeSpeed)
             {

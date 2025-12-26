@@ -42,8 +42,8 @@ public class SunshineApp
 
     // Detached (分离进程列表)
     [JsonProperty("detached")]
-    public JToken? DetachedToken 
-    { 
+    public JToken? DetachedToken
+    {
         get => _detachedToken ?? new JArray();
         set => _detachedToken = value;
     }
@@ -58,8 +58,8 @@ public class SunshineApp
 
     // PrepCmd (准备命令列表)
     [JsonProperty("prep-cmd")]
-    public JToken? PrepCmdToken 
-    { 
+    public JToken? PrepCmdToken
+    {
         get => _prepCmdToken ?? new JArray();
         set => _prepCmdToken = value;
     }
@@ -74,8 +74,8 @@ public class SunshineApp
 
     // MenuCmd (菜单命令列表)
     [JsonProperty("menu-cmd")]
-    public JToken? MenuCmdToken 
-    { 
+    public JToken? MenuCmdToken
+    {
         get => _menuCmdToken ?? new JArray();
         set => _menuCmdToken = value;
     }
