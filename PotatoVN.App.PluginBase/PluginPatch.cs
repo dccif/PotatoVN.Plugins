@@ -114,16 +114,74 @@ public static class PluginPatch
         // 只有当有原始值记录时才恢复
         if (_data?.OriginalAutoDetectValue.HasValue == true && _settingsService != null && _autoDetectKey != null)
         {
+            var originalValue = _data.OriginalAutoDetectValue.Value;
+
             try
             {
                 var saveMethod = _settingsServiceType?.GetMethod("SaveSettingAsync")?.MakeGenericMethod(typeof(bool));
                 if (saveMethod != null)
                 {
                     // 1. 恢复后端设置
-                    await (Task)saveMethod.Invoke(_settingsService, [_autoDetectKey, _data.OriginalAutoDetectValue.Value, false, false, null, false])!;
+                    await (Task)saveMethod.Invoke(_settingsService, [_autoDetectKey, originalValue, false, false, null, false])!;
+                }
+
+                // 2. 尝试清空 Frame 的缓存 (使用 UiThreadInvokeHelper)
+                // 这样当用户下次导航回 SettingsPage 时，会创建一个新实例并读取正确的配置
+                Assembly? assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "GalgameManager");
+                if (assembly != null)
+                {
+                    Type? helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
+                    MethodInfo? invokeMethod = helperType?.GetMethod("InvokeAsync", BindingFlags.Public | BindingFlags.Static, null, [typeof(Action)], null);
+
+                    if (invokeMethod != null)
+                    {
+                        Action uiAction = () =>
+                        {
+                            try
+                            {
+                                // 获取 App 类型
+                                Type? appType = assembly.GetType("GalgameManager.App");
+                                if (appType == null) return;
+
+                                // 获取 NavigationService
+                                Type? navServiceType = assembly.GetType("GalgameManager.Contracts.Services.INavigationService");
+                                if (navServiceType == null) return;
+
+                                var getNavServiceMethod = appType.GetMethod("GetService", BindingFlags.Public | BindingFlags.Static)?.MakeGenericMethod(navServiceType);
+                                var navService = getNavServiceMethod?.Invoke(null, null);
+                                if (navService == null) return;
+
+                                // 获取 Frame
+                                var frameProp = navServiceType.GetProperty("Frame");
+                                var frame = frameProp?.GetValue(navService);
+                                if (frame == null) return;
+
+                                // 清空 Frame 的缓存
+                                var cacheSizeProp = frame.GetType().GetProperty("CacheSize");
+                                if (cacheSizeProp != null)
+                                {
+                                    // 获取当前 CacheSize (默认为 10)
+                                    int originalSize = (int)cacheSizeProp.GetValue(frame)!;
+                                    // 设置为 0 以清空缓存 (丢弃所有缓存的页面实例)
+                                    cacheSizeProp.SetValue(frame, 0);
+                                    // 恢复原始大小
+                                    cacheSizeProp.SetValue(frame, originalSize);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Plugin] UI Restore Inner Error: {ex}");
+                            }
+                        };
+
+                        await (Task)invokeMethod.Invoke(null, [uiAction])!;
+                    }
                 }
             }
-            catch { /* ignored */ }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Plugin] Restore Error: {ex}");
+            }
 
             // 清除原始值记录
             _data.OriginalAutoDetectValue = null;
