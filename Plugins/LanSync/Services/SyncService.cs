@@ -31,14 +31,14 @@ public static class SyncService
             var localDir = new DirectoryInfo(localPath);
             var remoteDir = new DirectoryInfo(remotePath);
 
-            bool localExists = localDir.Exists;
-            bool remoteExists = remoteDir.Exists;
+            var localExists = localDir.Exists;
+            var remoteExists = remoteDir.Exists;
 
             if (!localExists && !remoteExists) return;
 
             // 1. Determine Direction
-            DateTime localMax = localExists ? GetMaxLastWriteTime(localDir) : DateTime.MinValue;
-            DateTime remoteMax = remoteExists ? GetMaxLastWriteTime(remoteDir) : DateTime.MinValue;
+            var localMax = localExists ? GetMaxLastWriteTime(localDir) : DateTime.MinValue;
+            var remoteMax = remoteExists ? GetMaxLastWriteTime(remoteDir) : DateTime.MinValue;
 
             // Tolerance check for "Up to date" to avoid ping-pong syncs if times are very close
             if (Math.Abs((localMax - remoteMax).Ticks) < TicksThreshold)
@@ -104,7 +104,7 @@ public static class SyncService
 
             foreach (var sFile in sourceFiles)
             {
-                string relPath = Path.GetRelativePath(source.FullName, sFile.FullName);
+                var relPath = Path.GetRelativePath(source.FullName, sFile.FullName);
                 sourceMap[relPath] = sFile;
             }
 
@@ -114,11 +114,8 @@ public static class SyncService
             // 3. Delete Extraneous Files in Target
             foreach (var tFile in targetFiles)
             {
-                string relPath = Path.GetRelativePath(target.FullName, tFile.FullName);
-                if (!sourceMap.ContainsKey(relPath))
-                {
-                    tFile.Delete();
-                }
+                var relPath = Path.GetRelativePath(target.FullName, tFile.FullName);
+                if (!sourceMap.ContainsKey(relPath)) tFile.Delete();
             }
 
             // 4. Remove Empty Directories in Target (Bottom-up cleanup)
@@ -129,13 +126,13 @@ public static class SyncService
             // 5. Create Directories & Copy/Update Files
             foreach (var kvp in sourceMap)
             {
-                string relPath = kvp.Key;
-                FileInfo sFile = kvp.Value;
+                var relPath = kvp.Key;
+                var sFile = kvp.Value;
 
-                string targetFullPath = Path.Combine(target.FullName, relPath);
-                FileInfo tFile = new FileInfo(targetFullPath);
+                var targetFullPath = Path.Combine(target.FullName, relPath);
+                var tFile = new FileInfo(targetFullPath);
 
-                bool shouldCopy = false;
+                var shouldCopy = false;
 
                 if (!tFile.Exists)
                 {
@@ -145,22 +142,15 @@ public static class SyncService
                 {
                     // Compare Size
                     if (sFile.Length != tFile.Length)
-                    {
                         shouldCopy = true;
-                    }
                     // Compare Time (Allow 2s tolerance for FS differences)
                     else if (Math.Abs((sFile.LastWriteTime - tFile.LastWriteTime).Ticks) > TicksThreshold)
-                    {
                         shouldCopy = true;
-                    }
                 }
 
                 if (shouldCopy)
                 {
-                    if (tFile.Directory?.Exists == false)
-                    {
-                        tFile.Directory.Create();
-                    }
+                    if (tFile.Directory?.Exists == false) tFile.Directory.Create();
                     sFile.CopyTo(targetFullPath, true);
                 }
             }
@@ -177,17 +167,14 @@ public static class SyncService
     {
         try
         {
-            foreach (var d in dir.GetDirectories())
-            {
-                DeleteEmptyDirs(d);
-            }
+            foreach (var d in dir.GetDirectories()) DeleteEmptyDirs(d);
             // If no files and no subdirs, delete
-            if (dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0)
-            {
-                dir.Delete();
-            }
+            if (dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) dir.Delete();
         }
-        catch { /* Ignore access errors */ }
+        catch
+        {
+            /* Ignore access errors */
+        }
     }
 
     /// <summary>
@@ -198,8 +185,8 @@ public static class SyncService
     {
         if (game?.DetectedSavePath is null) return;
 
-        string? localPath = game.DetectedSavePath?.ToPath();
-        string? displayPath = game.DetectedSavePath?.ToDisplay(); // e.g. %GameRoot%\Save
+        var localPath = game.DetectedSavePath?.ToPath();
+        var displayPath = game.DetectedSavePath?.ToDisplay(); // e.g. %GameRoot%\Save
 
         if (string.IsNullOrWhiteSpace(localPath) || string.IsNullOrWhiteSpace(displayPath)) return;
 
@@ -213,7 +200,6 @@ public static class SyncService
 
         string? requiredSettingName = null;
         string? requiredPath = null;
-        bool isUserData = false;
 
         // Logic to determine Remote Path
         if (displayPath.StartsWith("%GameRoot%", StringComparison.OrdinalIgnoreCase))
@@ -226,7 +212,8 @@ public static class SyncService
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                    string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.", requiredSettingName));
+                    string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.",
+                        requiredSettingName));
                 return;
             }
 
@@ -235,33 +222,31 @@ public static class SyncService
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                     string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}", requiredSettingName, requiredPath));
+                    string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}",
+                        requiredSettingName, requiredPath));
                 return;
             }
 
             remoteRoot = requiredPath;
             // Remove "%GameRoot%" length. 
             if (displayPath.Length > "%GameRoot%".Length)
-            {
-                relativeSuffix = displayPath.Substring("%GameRoot%".Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            }
+                relativeSuffix = displayPath.Substring("%GameRoot%".Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             else
-            {
                 relativeSuffix = string.Empty;
-            }
         }
         else if (displayPath.StartsWith("%"))
         {
             // Case 2: User Data (Documents, AppData, etc.)
             requiredSettingName = Plugin.GetLocalized("Ui_UserData") ?? "User Data";
             requiredPath = directories[0].Path;
-            isUserData = true;
 
             if (string.IsNullOrWhiteSpace(requiredPath))
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                    string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.", requiredSettingName));
+                    string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.",
+                        requiredSettingName));
                 return;
             }
 
@@ -270,54 +255,52 @@ public static class SyncService
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                     string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}", requiredSettingName, requiredPath));
+                    string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}",
+                        requiredSettingName, requiredPath));
                 return;
             }
 
             // Find which token matches
-            int closeIndex = displayPath.IndexOf('%', 1);
+            var closeIndex = displayPath.IndexOf('%', 1);
             if (closeIndex > 1)
             {
-                string token = displayPath.Substring(0, closeIndex + 1); // e.g. %Documents%
-                
-                string relativeBase = GetRelativePathFromToken(token);
-                
-                remoteRoot = string.IsNullOrEmpty(relativeBase) 
-                    ? directories[0].Path 
+                var token = displayPath.Substring(0, closeIndex + 1); // e.g. %Documents%
+
+                var relativeBase = GetRelativePathFromToken(token);
+
+                remoteRoot = string.IsNullOrEmpty(relativeBase)
+                    ? directories[0].Path
                     : Path.Combine(directories[0].Path, relativeBase);
-                
+
                 if (displayPath.Length > token.Length)
-                {
-                    relativeSuffix = displayPath.Substring(token.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                }
+                    relativeSuffix = displayPath.Substring(token.Length)
+                        .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 else
-                {
                     relativeSuffix = string.Empty;
-                }
             }
         }
-        
+
         if (string.IsNullOrWhiteSpace(remoteRoot))
         {
-             Plugin.Instance.Notify(InfoBarSeverity.Warning, 
-                 Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error", 
-                 "Could not determine remote sync path for this game.");
-             return;
+            Plugin.Instance.Notify(InfoBarSeverity.Warning,
+                Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                "Could not determine remote sync path for this game.");
+            return;
         }
 
         try
         {
-            string remoteFullPath = string.IsNullOrWhiteSpace(relativeSuffix) 
-                ? remoteRoot 
+            var remoteFullPath = string.IsNullOrWhiteSpace(relativeSuffix)
+                ? remoteRoot
                 : Path.Combine(remoteRoot, relativeSuffix);
-            
+
             await SyncAsync(localPath, remoteFullPath);
         }
         catch (Exception ex)
         {
-             Plugin.Instance.Notify(InfoBarSeverity.Error, 
-                 Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error", 
-                 ex.Message);
+            Plugin.Instance.Notify(InfoBarSeverity.Error,
+                Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                ex.Message);
         }
     }
 
@@ -329,8 +312,8 @@ public static class SyncService
             "%LOCALAPPDATA%" => Path.Combine("AppData", "Local"),
             "%LOCALLOW%" => Path.Combine("AppData", "LocalLow"),
             "%DOCUMENTS%" => "Documents",
-            "%USERPROFILE%" => "", 
-            _ => token.Trim('%') 
+            "%USERPROFILE%" => "",
+            _ => token.Trim('%')
         };
     }
 }

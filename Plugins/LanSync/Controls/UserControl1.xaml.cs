@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -24,10 +23,5 @@ public sealed partial class UserControl1 : UserControl
 
         var resourceLocator = XamlResourceLocatorFactory.Create();
         Application.LoadComponent(this, resourceLocator, ComponentResourceLocation.Application);
-    }
-
-    private void PluginButton_Click(object sender, RoutedEventArgs e)
-    {
-        StatusText.Text = "插件按钮在 " + System.DateTime.Now.ToString(CultureInfo.InvariantCulture) + " 被点击了！";
     }
 }

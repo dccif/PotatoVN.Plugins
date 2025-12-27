@@ -12,6 +12,7 @@ body:
         - GameSaveDetector
         - BigScreen
         - CreateShort
+        - LanSync
         - 新插件创意
     validations:
       required: true

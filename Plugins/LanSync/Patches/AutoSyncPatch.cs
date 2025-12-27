@@ -15,14 +15,14 @@ public class AutoSyncPatch
     private static readonly HashSet<Guid> _syncedGames = new();
 
     [HarmonyTargetMethod]
-    static MethodBase TargetMethod()
+    private static MethodInfo TargetMethod()
     {
         var type = AccessTools.TypeByName("GalgameManager.ViewModels.GalgameViewModel");
         return AccessTools.Method(type, "Play");
     }
 
     [HarmonyPrefix]
-    static bool Prefix(object __instance, ref Task __result)
+    private static bool Prefix(object __instance, ref Task __result)
     {
         // 1. Check if AutoSync is enabled
         if (Plugin.Instance?.Data?.AutoSync != true) return true;
@@ -93,7 +93,9 @@ public class AutoSyncPatch
                 var task = method.Invoke(viewModel, null) as Task;
                 if (task != null) await task;
             }
-            catch { }
+            catch
+            {
+            }
         }
     }
 }

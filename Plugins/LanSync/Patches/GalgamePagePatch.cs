@@ -12,14 +12,14 @@ namespace PotatoVN.App.PluginBase.Patches;
 public class GalgamePagePatch
 {
     [HarmonyTargetMethod]
-    static MethodBase TargetMethod()
+    private static MethodInfo TargetMethod()
     {
         var type = AccessTools.TypeByName("GalgameManager.Views.HomeDetailPage");
         return AccessTools.Method(type, "OnNavigatedTo");
     }
 
     [HarmonyPostfix]
-    static void Postfix(object __instance)
+    private static void Postfix(object __instance)
     {
         try
         {
@@ -27,12 +27,10 @@ public class GalgamePagePatch
 
             // Try to add immediately if tree is ready
             if (!TryInjectButton(page))
-            {
                 // If not found (e.g. tree not ready), wait for Loaded
                 page.Loaded += Page_Loaded;
-            }
         }
-        catch (Exception ex)
+        catch
         {
             // Silent failure or log
         }
@@ -58,7 +56,10 @@ public class GalgamePagePatch
                 return true;
             }
         }
-        catch { }
+        catch
+        {
+        }
+
         return false;
     }
 
@@ -74,15 +75,15 @@ public class GalgamePagePatch
         var btn = new AppBarButton
         {
             Label = Plugin.GetLocalized("Ui_LanSync") ?? "LanSync",
-            Icon = new FontIcon { Glyph = "\uE895" }, 
+            Icon = new FontIcon { Glyph = "\uE895" },
             Tag = "LanSyncButton"
         };
-        
+
         btn.Click += async (s, e) =>
         {
             var currentGame = Plugin.Instance?.CurrentGalgame;
             if (currentGame == null) return;
-            
+
             // Disable button briefly? Or show InfoBar is handled by SyncService.
             await Services.SyncService.SyncGameAsync(currentGame);
         };
@@ -92,13 +93,9 @@ public class GalgamePagePatch
         // <AppBarButton x:Uid="GalgamePage_Play" ...> is usually index 0.
         // We want to insert at index 1.
         if (commandBar.PrimaryCommands.Count > 0)
-        {
             commandBar.PrimaryCommands.Insert(1, btn);
-        }
         else
-        {
             commandBar.PrimaryCommands.Add(btn);
-        }
     }
 
     private static CommandBar? FindCommandBar(DependencyObject parent)
@@ -106,12 +103,12 @@ public class GalgamePagePatch
         if (parent == null) return null;
 
         // 1. Try Visual Tree (most robust if loaded)
-        int count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
         {
             var child = VisualTreeHelper.GetChild(parent, i);
             if (child is CommandBar bar) return bar;
-            
+
             // Recursive
             var res = FindCommandBar(child);
             if (res != null) return res;
@@ -120,11 +117,11 @@ public class GalgamePagePatch
         // 2. Fallback to Logical Content (for simple nesting before Loaded)
         if (count == 0 && parent is ContentControl cc && cc.Content is DependencyObject content)
         {
-             if (content is CommandBar bar) return bar;
-             return FindCommandBar(content);
+            if (content is CommandBar bar) return bar;
+            return FindCommandBar(content);
         }
+
         if (count == 0 && parent is Panel panel)
-        {
             foreach (var child in panel.Children)
             {
                 if (child is CommandBar bar) return bar;
@@ -134,7 +131,6 @@ public class GalgamePagePatch
                     if (res != null) return res;
                 }
             }
-        }
 
         return null;
     }

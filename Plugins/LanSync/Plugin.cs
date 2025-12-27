@@ -5,7 +5,6 @@ using GalgameManager.WinApp.Base.Contracts.PluginUi;
 using GalgameManager.WinApp.Base.Models;
 using HarmonyLib;
 using Microsoft.UI.Xaml.Controls;
-using PotatoVN.App.PluginBase.Helper;
 using PotatoVN.App.PluginBase.Models;
 using System;
 using System.Diagnostics;
@@ -63,7 +62,6 @@ public partial class Plugin : IPlugin, IPluginSetting
     public async Task InitializeAsync(IPotatoVnApi hostApi)
     {
         _hostApi = hostApi;
-        FileHelper.Init(_hostApi.GetPluginPath());
         XamlResourceLocatorFactory.packagePath = _hostApi.GetPluginPath();
         var dataJson = await _hostApi.GetDataAsync();
         if (!string.IsNullOrWhiteSpace(dataJson))

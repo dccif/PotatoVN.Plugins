@@ -1,6 +1,5 @@
 using GalgameManager.Models;
 using HarmonyLib;
-using Microsoft.UI.Xaml.Controls;
 using System.Reflection;
 
 namespace PotatoVN.App.PluginBase.Patches;
@@ -9,17 +8,17 @@ namespace PotatoVN.App.PluginBase.Patches;
 public class GalgameViewModelPatch
 {
     [HarmonyTargetMethod]
-    static MethodBase TargetMethod()
+    private static MethodInfo TargetMethod()
     {
         var type = AccessTools.TypeByName("GalgameManager.ViewModels.GalgameViewModel");
         return AccessTools.Method(type, "OnNavigatedTo");
     }
 
     [HarmonyPrefix]
-    static void Prefix(object parameter)
+    private static void Prefix(object parameter)
     {
         if (Plugin.Instance == null) return;
-        
+
         // parameter is GalgamePageParameter
         if (parameter != null)
         {

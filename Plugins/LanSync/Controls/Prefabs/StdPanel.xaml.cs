@@ -12,7 +12,7 @@ public sealed partial class StdPanel : UserControl
         {
             CornerRadius = new CornerRadius(5),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(15, 10, 50, 10),
+            Padding = new Thickness(15, 10, 30, 10),
             BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
             Background = Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush,
             Child = child

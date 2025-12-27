@@ -12,6 +12,7 @@ body:
         - GameSaveDetector
         - BigScreen
         - CreateShort
+        - LanSync
         - 其他/公共组件
     validations:
       required: true

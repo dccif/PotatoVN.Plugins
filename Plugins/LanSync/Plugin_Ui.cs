@@ -38,7 +38,7 @@ public partial class Plugin
         TextBlock header = new()
         {
             Text = GetLocalized("Ui_SyncDirectories") ?? "Sync Directories",
-            Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"],
+            Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"]
         };
         root.Children.Add(header);
 
@@ -72,10 +72,10 @@ public partial class Plugin
     {
         container.Children.Clear();
 
-        for (int i = 0; i < _data.SyncDirectories.Count; i++)
+        for (var i = 0; i < _data.SyncDirectories.Count; i++)
         {
             var dir = _data.SyncDirectories[i];
-            bool isFixed = i < 2; // First two are fixed (Label/Remove locked)
+            var isFixed = i < 2; // First two are fixed (Label/Remove locked)
 
             Grid row = new();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Label
@@ -94,7 +94,11 @@ public partial class Plugin
                 IsEnabled = !isFixed // Only editable if not fixed
             };
             // Save on loose focus
-            labelBox.LostFocus += (s, e) => { dir.Name = labelBox.Text; SaveData(); };
+            labelBox.LostFocus += (s, e) =>
+            {
+                dir.Name = labelBox.Text;
+                SaveData();
+            };
 
             // 2. Path (Read-only, set by picker)
             TextBox pathBox = new()
