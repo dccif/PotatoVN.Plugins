@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PluginDescription" xml:space="preserve">
+    <value>ゲームセーブデータ検出器。アルゴリズムを使用してファイルの変更をリアルタイムで監視し、ゲームのセーブデータの場所を特定します。</value>
+  </data>
+  <data name="PluginName" xml:space="preserve">
+    <value>セーブデータ検出</value>
+  </data>
+  <data name="Ui_Select" xml:space="preserve">
+    <value>選択</value>
+  </data>
+  <data name="Ui_ProcessSelection" xml:space="preserve">
+    <value>プロセス選択</value>
+  </data>
+  <data name="Ui_SelectGameProcessDescription" xml:space="preserve">
+    <value>ボタンをクリックしてゲームプロセスを選択し、アーカイブの検出を開始します</value>
+  </data>
+  <data name="Ui_SelectProcessDialogTitle" xml:space="preserve">
+    <value>プロセスを選択</value>
+  </data>
+  <data name="Ui_Confirm" xml:space="preserve">
+    <value>確定</value>
+  </data>
+  <data name="Ui_Cancel" xml:space="preserve">
+    <value>キャンセル</value>
+  </data>
+  <data name="Ui_PleaseSelectProcess" xml:space="preserve">
+    <value>ゲームプロセスを選択してください</value>
+  </data>
+  <data name="Msg_ProcessSelectedTitle" xml:space="preserve">
+    <value>プロセス選択完了</value>
+  </data>
+  <data name="Msg_ProcessSelectedMsg" xml:space="preserve">
+    <value>{0} のファイル変更を監視しています...</value>
+  </data>
+  <data name="Msg_SaveDetectedTitle" xml:space="preserve">
+    <value>セーブデータを検出しました</value>
+  </data>
+  <data name="Msg_SaveDetectedMsg" xml:space="preserve">
+    <value>パスを更新しました: {0}</value>
+  </data>
+  <data name="Ui_UseAdminMode" xml:space="preserve">
+    <value>管理者モードを使用 (ETW)</value>
+  </data>
+  <data name="Ui_UseAdminModeDescription" xml:space="preserve">
+    <value>通常は監視モードで十分です。仕組みを理解している場合のみ有効にしてください。</value>
+  </data>
+  <data name="Ui_RestartAsAdmin" xml:space="preserve">
+    <value>管理者として再起動</value>
+  </data>
+  <data name="Ui_AdminRequiredWarning" xml:space="preserve">
+    <value>現在のプロセスは管理者として実行されていません。管理者モードは正しく動作しません。</value>
+  </data>
+  <data name="Ui_AdminRequiredDescription" xml:space="preserve">
+    <value>ETW検出を有効にするには、アプリケーションを管理者として再起動してください。</value>
+  </data>
+  <data name="GameSaveDetectorTask_Title" xml:space="preserve">
+    <value>セーブデータ検出</value>
+  </data>
+  <data name="GameSaveDetector_Initializing" xml:space="preserve">
+    <value>セーブデータ検出を初期化中...</value>
+  </data>
+  <data name="GameSaveDetector_Monitoring" xml:space="preserve">
+    <value>ファイルの変更を監視中...</value>
+  </data>
+  <data name="GameSaveDetector_Success" xml:space="preserve">
+    <value>セーブデータを検出しました：{0}</value>
+  </data>
+  <data name="GameSaveDetector_NotFound" xml:space="preserve">
+    <value>セーブデータの変更が検出されませんでした</value>
+  </data>
+  <data name="GameSaveDetector_Failed" xml:space="preserve">
+    <value>セーブデータ検出に失敗しました</value>
+  </data>
+  <data name="GameSaveDetector_ProcessNotFound" xml:space="preserve">
+    <value>ゲームプロセスが見つかりませんでした</value>
+  </data>
+  <data name="GameSaveDetector_Cancelled" xml:space="preserve">
+    <value>タスクがキャンセルされました</value>
+  </data>
+  <data name="GameSaveDetector_Timeout" xml:space="preserve">
+    <value>検出タイムアウト（最大時間に達しました）</value>
+  </data>
+</root>
