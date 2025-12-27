@@ -1,8 +1,9 @@
+using GalgameManager.Models;
 using HarmonyLib;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using System;
+using Microsoft.UI.Xaml.Navigation;
 using System.Linq;
 using System.Reflection;
 
@@ -14,45 +15,71 @@ public class GalgamePagePatch
     [HarmonyTargetMethod]
     private static MethodInfo TargetMethod()
     {
+        // GalgamePage.xaml corresponds to the class GalgameManager.Views.HomeDetailPage
         var type = AccessTools.TypeByName("GalgameManager.Views.HomeDetailPage");
         return AccessTools.Method(type, "OnNavigatedTo");
     }
 
     [HarmonyPostfix]
-    private static void Postfix(object __instance)
+    private static void Postfix(object __instance, object e)
     {
         try
         {
             if (__instance is not Page page) return;
 
+            // Extract Galgame from NavigationEventArgs
+            var game = GetGalgameFromEventArgs(e);
+
+            // If game is null or no detected save path, do not show button
+            if (game == null || string.IsNullOrWhiteSpace(game.DetectedSavePath?.ToPath())) return;
+
             // Try to add immediately if tree is ready
-            if (!TryInjectButton(page))
-                // If not found (e.g. tree not ready), wait for Loaded
-                page.Loaded += Page_Loaded;
+            if (!TryInjectButton(page, game))
+            {
+                // Capture game in closure for Loaded event
+                RoutedEventHandler loadedHandler = null!;
+                loadedHandler = (s, args) =>
+                {
+                    page.Loaded -= loadedHandler;
+                    TryInjectButton(page, game);
+                };
+                page.Loaded += loadedHandler;
+            }
         }
         catch
         {
-            // Silent failure or log
+            // Silent failure
         }
     }
 
-    private static void Page_Loaded(object sender, RoutedEventArgs e)
+    private static Galgame? GetGalgameFromEventArgs(object e)
     {
-        if (sender is Page page)
+        if (e is NavigationEventArgs navArgs && navArgs.Parameter != null)
         {
-            page.Loaded -= Page_Loaded;
-            TryInjectButton(page);
+            var param = navArgs.Parameter;
+            // Parameter is likely GalgamePageParameter which has a 'Galgame' field
+            // Or it could be the Galgame object itself depending on navigation
+            if (param is Galgame g) return g;
+
+            var fieldInfo = param.GetType().GetField("Galgame");
+            if (fieldInfo != null) return fieldInfo.GetValue(param) as Galgame;
+
+            // Fallbacks for properties
+            var propInfo = param.GetType().GetProperty("Galgame");
+            if (propInfo != null) return propInfo.GetValue(param) as Galgame;
         }
+
+        return null;
     }
 
-    private static bool TryInjectButton(Page page)
+    private static bool TryInjectButton(Page page, Galgame game)
     {
         try
         {
             var commandBar = FindCommandBar(page);
             if (commandBar != null)
             {
-                AddButton(commandBar);
+                AddButton(commandBar, game);
                 return true;
             }
         }
@@ -63,14 +90,10 @@ public class GalgamePagePatch
         return false;
     }
 
-    private static void AddButton(CommandBar commandBar)
+    private static void AddButton(CommandBar commandBar, Galgame game)
     {
         // Avoid duplicate
         if (commandBar.PrimaryCommands.Any(c => c is AppBarButton btn && (string)btn.Tag == "LanSyncButton")) return;
-
-        // Check if detected save path is present
-        var game = Plugin.Instance?.CurrentGalgame;
-        if (game == null || string.IsNullOrWhiteSpace(game.DetectedSavePath?.ToPath())) return;
 
         var btn = new AppBarButton
         {
@@ -79,19 +102,13 @@ public class GalgamePagePatch
             Tag = "LanSyncButton"
         };
 
-        btn.Click += async (s, e) =>
+        btn.Click += async (s, args) =>
         {
-            var currentGame = Plugin.Instance?.CurrentGalgame;
-            if (currentGame == null) return;
-
-            // Disable button briefly? Or show InfoBar is handled by SyncService.
-            await Services.SyncService.SyncGameAsync(currentGame);
+            // Use the captured game instance
+            await Services.SyncService.SyncGameAsync(game);
         };
 
         // Insert after "Play" button (Start Game)
-        // In the XAML, Play is the first item in CommandBar content (PrimaryCommands).
-        // <AppBarButton x:Uid="GalgamePage_Play" ...> is usually index 0.
-        // We want to insert at index 1.
         if (commandBar.PrimaryCommands.Count > 0)
             commandBar.PrimaryCommands.Insert(1, btn);
         else
