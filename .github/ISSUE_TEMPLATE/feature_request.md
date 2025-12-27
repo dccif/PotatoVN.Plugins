@@ -1,0 +1,37 @@
+name: ✨ 新功能建议
+description: 建议一个新功能或对现有插件的改进
+title: "[Feat]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: plugin-name
+    attributes:
+      label: 涉及的插件
+      description: 这个功能建议是针对哪个插件的？
+      options:
+        - GameSaveDetector
+        - BigScreen
+        - CreateShort
+        - 新插件创意
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 功能描述
+      description: 请清晰简洁地描述你想要的功能。
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 使用场景
+      description: 这个功能解决了什么问题？在什么场景下会使用到？
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 补充信息
+      description: 关于这个功能的任何其他上下文或截图。

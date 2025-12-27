@@ -1,0 +1,57 @@
+name: 🐛 Bug 反馈
+description: 创建一个报告来帮助我们改进插件
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: plugin-name
+    attributes:
+      label: 涉及的插件
+      description: 请选择出现问题的插件
+      options:
+        - GameSaveDetector
+        - BigScreen
+        - CreateShort
+        - 其他/公共组件
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本
+      description: 请提供你正在使用的插件版本号
+      placeholder: e.g. 1.0.0
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 请清晰简洁地描述发生了什么问题
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: |
+        请列出重现该 bug 的步骤：
+        1. 启动 '...'
+        2. 点击 '....'
+        3. 滚动到 '....'
+        4. 看到错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 请描述你原本期望发生的事情
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 截图或日志
+      description: 如果适用，请添加截图或错误日志来帮助解释您的问题。
