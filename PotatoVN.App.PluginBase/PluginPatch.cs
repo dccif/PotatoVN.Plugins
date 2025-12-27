@@ -15,9 +15,17 @@ public static class PluginPatch
     private static string? _autoDetectKey;
     private static Harmony? _harmony;
 
+    // 标记是否处于“等待恢复”状态
+    private static bool _isRestoring;
+    // 暂存需要恢复的原始值
+    private static bool? _pendingRestoreValue;
+
     public static async Task InitializeAsync(PluginData data)
     {
         _data = data;
+        _isRestoring = false;
+        _pendingRestoreValue = null;
+
         try
         {
             // 1. 获取程序集和类型
@@ -88,17 +96,32 @@ public static class PluginPatch
         {
             if (_settingsService == null || string.IsNullOrEmpty(_autoDetectKey)) return;
 
+            // --- 延迟恢复逻辑 (Lazy Restore) ---
+            // 如果处于恢复模式，说明用户之前卸载了插件但 SettingsPage 被缓存了
+            // 此时我们需要将值恢复为原始值，然后移除 Hook
+            if (_isRestoring)
+            {
+                if (_pendingRestoreValue.HasValue)
+                {
+                    var prop = __instance.GetType().GetProperty("AutoDetectSavePath");
+                    prop?.SetValue(__instance, _pendingRestoreValue.Value);
+                }
+
+                // 恢复完成，移除所有 Patch 并重置状态
+                _harmony?.UnpatchAll("PotatoVN.App.PluginBase.SettingsViewModelPatch");
+                _isRestoring = false;
+                _pendingRestoreValue = null;
+                return;
+            }
+            // ------------------------------------
+
             var readMethod = _settingsServiceType?.GetMethod("ReadSettingAsync")?.MakeGenericMethod(typeof(bool));
             if (readMethod != null)
             {
                 // 重新读取配置
-                // 注意：这里需要阻塞等待结果，或者确保它是异步安全的。
-                // 由于 ReadSettingAsync 返回 Task<bool>，直接 .Result 可能会死锁，但原代码 SettingsViewModel 构造函数里就是直接调用的 .Result。
-                // 为了保险，我们尝试反射调用 Result 属性。
                 dynamic task = readMethod.Invoke(_settingsService, [_autoDetectKey, false, null, false])!;
                 bool value = task.Result;
 
-                // 设置 ViewModel 的 AutoDetectSavePath 属性
                 var prop = __instance.GetType().GetProperty("AutoDetectSavePath");
                 prop?.SetValue(__instance, value);
             }
@@ -115,6 +138,7 @@ public static class PluginPatch
         if (_data?.OriginalAutoDetectValue.HasValue == true && _settingsService != null && _autoDetectKey != null)
         {
             var originalValue = _data.OriginalAutoDetectValue.Value;
+            _pendingRestoreValue = originalValue;
 
             try
             {
@@ -125,58 +149,11 @@ public static class PluginPatch
                     await (Task)saveMethod.Invoke(_settingsService, [_autoDetectKey, originalValue, false, false, null, false])!;
                 }
 
-                // 2. 尝试清空 Frame 的缓存 (使用 UiThreadInvokeHelper)
-                // 这样当用户下次导航回 SettingsPage 时，会创建一个新实例并读取正确的配置
-                Assembly? assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "GalgameManager");
-                if (assembly != null)
-                {
-                    Type? helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
-                    MethodInfo? invokeMethod = helperType?.GetMethod("InvokeAsync", BindingFlags.Public | BindingFlags.Static, null, [typeof(Action)], null);
-
-                    if (invokeMethod != null)
-                    {
-                        Action uiAction = () =>
-                        {
-                            try
-                            {
-                                // 获取 App 类型
-                                Type? appType = assembly.GetType("GalgameManager.App");
-                                if (appType == null) return;
-
-                                // 获取 NavigationService
-                                Type? navServiceType = assembly.GetType("GalgameManager.Contracts.Services.INavigationService");
-                                if (navServiceType == null) return;
-
-                                var getNavServiceMethod = appType.GetMethod("GetService", BindingFlags.Public | BindingFlags.Static)?.MakeGenericMethod(navServiceType);
-                                var navService = getNavServiceMethod?.Invoke(null, null);
-                                if (navService == null) return;
-
-                                // 获取 Frame
-                                var frameProp = navServiceType.GetProperty("Frame");
-                                var frame = frameProp?.GetValue(navService);
-                                if (frame == null) return;
-
-                                // 清空 Frame 的缓存
-                                var cacheSizeProp = frame.GetType().GetProperty("CacheSize");
-                                if (cacheSizeProp != null)
-                                {
-                                    // 获取当前 CacheSize (默认为 10)
-                                    int originalSize = (int)cacheSizeProp.GetValue(frame)!;
-                                    // 设置为 0 以清空缓存 (丢弃所有缓存的页面实例)
-                                    cacheSizeProp.SetValue(frame, 0);
-                                    // 恢复原始大小
-                                    cacheSizeProp.SetValue(frame, originalSize);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"[Plugin] UI Restore Inner Error: {ex}");
-                            }
-                        };
-
-                        await (Task)invokeMethod.Invoke(null, [uiAction])!;
-                    }
-                }
+                // 2. 标记恢复模式
+                // 由于用户卸载插件时通常不在 SettingsPage，我们不需要立即更新 UI。
+                // 我们只需设置此标记，当用户下次导航到 SettingsPage (触发 OnNavigatedTo) 时，
+                // Harmony Postfix 会自动检测此标记，更新 UI 上的值，并执行 UnpatchAll。
+                _isRestoring = true;
             }
             catch (Exception ex)
             {
@@ -186,7 +163,10 @@ public static class PluginPatch
             // 清除原始值记录
             _data.OriginalAutoDetectValue = null;
         }
-
-        _harmony?.UnpatchAll("PotatoVN.App.PluginBase.SettingsViewModelPatch");
+        else
+        {
+            // 如果没有需要恢复的值，直接清理 Patch
+            _harmony?.UnpatchAll("PotatoVN.App.PluginBase.SettingsViewModelPatch");
+        }
     }
 }
