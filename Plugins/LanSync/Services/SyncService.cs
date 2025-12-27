@@ -206,9 +206,9 @@ public static class SyncService
         {
             // Case 1: Game Root
             requiredSettingName = Plugin.GetLocalized("Ui_GameRoot") ?? "Game Root";
-            requiredPath = directories[1].Path;
+            var libraryRoot = directories[1].Path;
 
-            if (string.IsNullOrWhiteSpace(requiredPath))
+            if (string.IsNullOrWhiteSpace(libraryRoot))
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
@@ -218,16 +218,31 @@ public static class SyncService
             }
 
             // Check if Base Path Exists
-            if (!Directory.Exists(requiredPath))
+            if (!Directory.Exists(libraryRoot))
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
                     string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}",
-                        requiredSettingName, requiredPath));
+                        requiredSettingName, libraryRoot));
                 return;
             }
 
-            remoteRoot = requiredPath;
+            // For Game Root, we must append the game's folder name to the remote library root
+            // logical Mapping: LocalLibrary/GameFolder -> RemoteLibrary/GameFolder
+#pragma warning disable CS0618 // 类型或成员已过时
+            var gamePath = game.LocalPath ?? game.Path; // Fallback to compatible Obsolete property if LocalPath is null
+#pragma warning restore CS0618 // 类型或成员已过时
+            if (string.IsNullOrWhiteSpace(gamePath))
+            {
+                Plugin.Instance.Notify(InfoBarSeverity.Warning,
+                   Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                   "Could not determine local game path.");
+                return;
+            }
+
+            var gameFolderName = new DirectoryInfo(gamePath).Name;
+            remoteRoot = Path.Combine(libraryRoot, gameFolderName);
+
             // Remove "%GameRoot%" length. 
             if (displayPath.Length > "%GameRoot%".Length)
                 relativeSuffix = displayPath.Substring("%GameRoot%".Length)
