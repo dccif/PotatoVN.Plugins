@@ -35,18 +35,22 @@ public partial class Plugin : IPlugin
         get
         {
             if (_resourceManager == null)
-                _resourceManager = new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
+                _resourceManager = new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources",
+                    typeof(Plugin).Assembly);
             return _resourceManager;
         }
     }
 
-    internal static string? GetLocalized(string key) => ResourceManager.GetString(key, _pluginCulture);
+    internal static string? GetLocalized(string key)
+    {
+        return ResourceManager.GetString(key, _pluginCulture);
+    }
 
     public PluginInfo Info { get; } = new()
     {
         Id = new Guid("9e3286fe-2f75-4b7a-8951-f8d68b304eb0"),
         Name = "Shortcut & Sunshine",
-        Description = "Support creating desktop shortcuts (URI) and exporting to Sunshine.",
+        Description = "Support creating desktop shortcuts (URI) and exporting to Sunshine."
     };
 
     public async Task InitializeAsync(IPotatoVnApi hostApi)
@@ -56,7 +60,6 @@ public partial class Plugin : IPlugin
         XamlResourceLocatorFactory.packagePath = _hostApi.GetPluginPath();
         var dataJson = await _hostApi.GetDataAsync();
         if (!string.IsNullOrWhiteSpace(dataJson))
-        {
             try
             {
                 _data = System.Text.Json.JsonSerializer.Deserialize<PluginData>(dataJson) ?? new PluginData();
@@ -65,14 +68,14 @@ public partial class Plugin : IPlugin
             {
                 _data = new PluginData();
             }
-        }
+
         _data.PropertyChanged += (_, _) => SaveData();
 
         // 1. Language Setup
         try
         {
             var language = _hostApi.Language;
-            string cultureCode = language switch
+            var cultureCode = language switch
             {
                 LanguageEnum.ChineseSimplified => "zh-CN",
                 LanguageEnum.English => "en-US",
@@ -89,7 +92,8 @@ public partial class Plugin : IPlugin
 
                 // Update Plugin Info with localized strings
                 Info.Name = GetLocalized("PluginName") ?? "Shortcut & Sunshine";
-                Info.Description = GetLocalized("PluginDescription") ?? "Support creating desktop shortcuts (URI) and exporting to Sunshine.";
+                Info.Description = GetLocalized("PluginDescription") ??
+                                   "Support creating desktop shortcuts (URI) and exporting to Sunshine.";
             }
         }
         catch (Exception ex)
@@ -107,8 +111,8 @@ public partial class Plugin : IPlugin
                 var uri = protocolArgs.Uri; // potato-vn://start/{uuid}
                 if (uri.Scheme == "potato-vn")
                 {
-                    bool startGame = false;
-                    string uuidStr = "";
+                    var startGame = false;
+                    var uuidStr = "";
 
                     // potato-vn://start/uuid or potato-vn://view/uuid
                     if (uri.Host == "start")
@@ -122,35 +126,42 @@ public partial class Plugin : IPlugin
                         uuidStr = uri.AbsolutePath.TrimStart('/');
                     }
 
-                    if (!string.IsNullOrEmpty(uuidStr) && Guid.TryParse(uuidStr, out Guid uuid))
+                    if (!string.IsNullOrEmpty(uuidStr) && Guid.TryParse(uuidStr, out var uuid))
                     {
                         var allGames = _hostApi.GetAllGames();
                         var game = allGames.FirstOrDefault(g => g.Uuid == uuid);
                         // Debugger.Launch();
                         if (game != null)
-                        {
                             try
                             {
                                 var assembly = Assembly.Load("GalgameManager");
                                 var helperType = assembly.GetType("GalgameManager.Helpers.UiThreadInvokeHelper");
-                                var invokeMethod = AccessTools.Method(helperType, "InvokeAsync", new[] { typeof(Action) });
+                                var invokeMethod =
+                                    AccessTools.Method(helperType, "InvokeAsync", new[] { typeof(Action) });
 
                                 if (invokeMethod != null)
                                 {
-#pragma warning disable CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
-#pragma warning disable CS8602 // 解引用可能出现空引用。
-                                    await (Task)invokeMethod.Invoke(null, new object[] { new Action(() =>
-                                        _hostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = game, StartGame = startGame })
-                                    ) });
-#pragma warning restore CS8602 // 解引用可能出现空引用。
-#pragma warning restore CS8600 // 将 null 字面量或可能为 null 的值转换为非 null 类型。
+#pragma warning disable CS8600
+                                    // 将 null 字面量或可能为 null 的值转换为非 null 类型。
+#pragma warning disable CS8602
+                                    // 解引用可能出现空引用。
+                                    await (Task)invokeMethod.Invoke(null, new object[]
+                                    {
+                                        new Action(() =>
+                                            _hostApi.NavigateTo(PageEnum.GalgamePage,
+                                                new GalgamePageNavParameter { Galgame = game, StartGame = startGame })
+                                        )
+                                    });
+#pragma warning restore CS8602
+                                    // 解引用可能出现空引用。
+#pragma warning restore CS8600
+                                    // 将 null 字面量或可能为 null 的值转换为非 null 类型。
                                 }
                             }
                             catch (Exception ex)
                             {
                                 Debug.WriteLine($"[Plugin] Navigation Error: {ex}");
                             }
-                        }
                     }
                 }
             }
@@ -173,18 +184,14 @@ public partial class Plugin : IPlugin
                 var original = AccessTools.Method(vmType, "GalFlyout_Opening");
                 var postfix = AccessTools.Method(typeof(Plugin), nameof(GalFlyoutOpeningPostfix));
                 if (original != null && postfix != null)
-                {
                     _harmony.Patch(original, postfix: new HarmonyMethod(postfix));
-                }
                 else
-                {
-                    System.Diagnostics.Debug.WriteLine("Plugin Error: GalFlyout_Opening method not found on HomeViewModel.");
-                }
+                    Debug.WriteLine("Plugin Error: GalFlyout_Opening method not found on HomeViewModel.");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Plugin Hook Error: {ex}");
+            Debug.WriteLine($"Plugin Hook Error: {ex}");
         }
     }
 
@@ -196,10 +203,7 @@ public partial class Plugin : IPlugin
             {
                 // Get the Galgame from flyout.Target.DataContext
                 object? game = null;
-                if (flyout.Target is FrameworkElement target && target.DataContext != null)
-                {
-                    game = target.DataContext;
-                }
+                if (flyout.Target is FrameworkElement target && target.DataContext != null) game = target.DataContext;
 
                 InjectOrUpdateMenuItems(flyout, game);
             }
@@ -215,7 +219,7 @@ public partial class Plugin : IPlugin
         MenuFlyoutItem? shortcutItem = null;
         MenuFlyoutItem? sunshineItem = null;
 
-        Galgame? castedGame = game as Galgame;
+        var castedGame = game as Galgame;
 
         // Check if already added
         foreach (var item in flyout.Items)
@@ -236,6 +240,7 @@ public partial class Plugin : IPlugin
             shortcutItem.Click += CreateShortcut_Click;
             AddItemToFlyout(flyout, shortcutItem);
         }
+
         shortcutItem.DataContext = game;
         shortcutItem.IsEnabled = game != null;
 
@@ -251,6 +256,7 @@ public partial class Plugin : IPlugin
             sunshineItem.Click += ExportSunshine_Click;
             AddItemToFlyout(flyout, sunshineItem);
         }
+
         sunshineItem.DataContext = game;
         sunshineItem.IsEnabled = game != null;
 
@@ -270,45 +276,33 @@ public partial class Plugin : IPlugin
     private static void AddItemToFlyout(MenuFlyout flyout, MenuFlyoutItem item)
     {
         // Find insertion point
-        int insertIndex = -1;
+        var insertIndex = -1;
 
         // Strategy 1: Check Icon (Symbol.OpenLocal)
-        for (int i = 0; i < flyout.Items.Count; i++)
-        {
+        for (var i = 0; i < flyout.Items.Count; i++)
             if (flyout.Items[i] is MenuFlyoutItem existingItem)
-            {
                 if (existingItem.Icon is SymbolIcon symIcon && symIcon.Symbol == Symbol.OpenLocal)
                 {
                     insertIndex = i + 1;
                     break;
                 }
-            }
-        }
 
         if (insertIndex != -1 && insertIndex <= flyout.Items.Count)
-        {
             flyout.Items.Insert(insertIndex, item);
-        }
         else
-        {
             flyout.Items.Add(item);
-        }
     }
 
     private static async void CreateShortcut_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement item && item.DataContext is Galgame game)
-        {
             await ShortcutService.CreateDesktopShortcut(game, _hostApi);
-        }
     }
 
     private static async void ExportSunshine_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement item && item.DataContext is Galgame game)
-        {
             await ShortcutService.ExportToSunshine(game, _hostApi);
-        }
     }
 
     private void SaveData()

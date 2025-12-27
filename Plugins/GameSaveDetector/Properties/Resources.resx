@@ -1,142 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
-    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
-    <xsd:element name="root" msdata:IsDataSet="true">
-      <xsd:complexType>
-        <xsd:choice maxOccurs="unbounded">
-          <xsd:element name="metadata">
+    <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+        <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+        <xsd:element name="root" msdata:IsDataSet="true">
             <xsd:complexType>
-              <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" />
-              </xsd:sequence>
-              <xsd:attribute name="name" use="required" type="xsd:string" />
-              <xsd:attribute name="type" type="xsd:string" />
-              <xsd:attribute name="mimetype" type="xsd:string" />
-              <xsd:attribute ref="xml:space" />
+                <xsd:choice maxOccurs="unbounded">
+                    <xsd:element name="metadata">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+                            </xsd:sequence>
+                            <xsd:attribute name="name" use="required" type="xsd:string"/>
+                            <xsd:attribute name="type" type="xsd:string"/>
+                            <xsd:attribute name="mimetype" type="xsd:string"/>
+                            <xsd:attribute ref="xml:space"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="assembly">
+                        <xsd:complexType>
+                            <xsd:attribute name="alias" type="xsd:string"/>
+                            <xsd:attribute name="name" type="xsd:string"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="data">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
+                            <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
+                            <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
+                            <xsd:attribute ref="xml:space"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="resheader">
+                        <xsd:complexType>
+                            <xsd:sequence>
+                                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                            </xsd:sequence>
+                            <xsd:attribute name="name" type="xsd:string" use="required"/>
+                        </xsd:complexType>
+                    </xsd:element>
+                </xsd:choice>
             </xsd:complexType>
-          </xsd:element>
-          <xsd:element name="assembly">
-            <xsd:complexType>
-              <xsd:attribute name="alias" type="xsd:string" />
-              <xsd:attribute name="name" type="xsd:string" />
-            </xsd:complexType>
-          </xsd:element>
-          <xsd:element name="data">
-            <xsd:complexType>
-              <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
-                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
-              </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
-              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
-              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
-              <xsd:attribute ref="xml:space" />
-            </xsd:complexType>
-          </xsd:element>
-          <xsd:element name="resheader">
-            <xsd:complexType>
-              <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
-              </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required" />
-            </xsd:complexType>
-          </xsd:element>
-        </xsd:choice>
-      </xsd:complexType>
-    </xsd:element>
-  </xsd:schema>
-  <resheader name="resmimetype">
-    <value>text/microsoft-resx</value>
-  </resheader>
-  <resheader name="version">
-    <value>2.0</value>
-  </resheader>
-  <resheader name="reader">
-    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </resheader>
-  <resheader name="writer">
-    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </resheader>
-  <data name="PluginDescription" xml:space="preserve">
+        </xsd:element>
+    </xsd:schema>
+    <resheader name="resmimetype">
+        <value>text/microsoft-resx</value>
+    </resheader>
+    <resheader name="version">
+        <value>2.0</value>
+    </resheader>
+    <resheader name="reader">
+        <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral,
+            PublicKeyToken=b77a5c561934e089
+        </value>
+    </resheader>
+    <resheader name="writer">
+        <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral,
+            PublicKeyToken=b77a5c561934e089
+        </value>
+    </resheader>
+    <data name="PluginDescription" xml:space="preserve">
     <value>Game save file detector, uses algorithms to monitor file changes in real-time to locate game save positions.</value>
   </data>
-  <data name="PluginName" xml:space="preserve">
+    <data name="PluginName" xml:space="preserve">
     <value>Save File Detector</value>
   </data>
-  <data name="Ui_Select" xml:space="preserve">
+    <data name="Ui_Select" xml:space="preserve">
     <value>Select</value>
   </data>
-  <data name="Ui_ProcessSelection" xml:space="preserve">
+    <data name="Ui_ProcessSelection" xml:space="preserve">
     <value>Process Selection</value>
   </data>
-  <data name="Ui_SelectGameProcessDescription" xml:space="preserve">
+    <data name="Ui_SelectGameProcessDescription" xml:space="preserve">
     <value>Click button to select game process and start save detection</value>
   </data>
-  <data name="Ui_SelectProcessDialogTitle" xml:space="preserve">
+    <data name="Ui_SelectProcessDialogTitle" xml:space="preserve">
     <value>Select Process</value>
   </data>
-  <data name="Ui_Confirm" xml:space="preserve">
+    <data name="Ui_Confirm" xml:space="preserve">
     <value>Confirm</value>
   </data>
-  <data name="Ui_Cancel" xml:space="preserve">
+    <data name="Ui_Cancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
-  <data name="Ui_PleaseSelectProcess" xml:space="preserve">
+    <data name="Ui_PleaseSelectProcess" xml:space="preserve">
     <value>Please select a game process</value>
   </data>
-  <data name="Msg_ProcessSelectedTitle" xml:space="preserve">
+    <data name="Msg_ProcessSelectedTitle" xml:space="preserve">
     <value>Process Selected</value>
   </data>
-  <data name="Msg_ProcessSelectedMsg" xml:space="preserve">
+    <data name="Msg_ProcessSelectedMsg" xml:space="preserve">
     <value>Monitoring {0} for file changes...</value>
   </data>
-  <data name="Msg_SaveDetectedTitle" xml:space="preserve">
+    <data name="Msg_SaveDetectedTitle" xml:space="preserve">
     <value>Save Path Detected</value>
   </data>
-  <data name="Msg_SaveDetectedMsg" xml:space="preserve">
+    <data name="Msg_SaveDetectedMsg" xml:space="preserve">
     <value>Path updated to: {0}</value>
   </data>
-  <data name="Ui_UseAdminMode" xml:space="preserve">
+    <data name="Ui_UseAdminMode" xml:space="preserve">
     <value>Use Admin Mode (ETW)</value>
   </data>
-  <data name="Ui_UseAdminModeDescription" xml:space="preserve">
+    <data name="Ui_UseAdminModeDescription" xml:space="preserve">
     <value>In most cases, the standard watcher mode is sufficient. Only enable this if you know what you are doing.</value>
   </data>
-  <data name="Ui_RestartAsAdmin" xml:space="preserve">
+    <data name="Ui_RestartAsAdmin" xml:space="preserve">
     <value>Restart as Admin</value>
   </data>
-  <data name="Ui_AdminRequiredWarning" xml:space="preserve">
+    <data name="Ui_AdminRequiredWarning" xml:space="preserve">
     <value>Current process is not running as Administrator. Admin Mode will not work correctly.</value>
   </data>
-  <data name="Ui_AdminRequiredDescription" xml:space="preserve">
+    <data name="Ui_AdminRequiredDescription" xml:space="preserve">
     <value>Restart the application as administrator to enable ETW detection.</value>
   </data>
-  <data name="GameSaveDetectorTask_Title" xml:space="preserve">
+    <data name="GameSaveDetectorTask_Title" xml:space="preserve">
     <value>Save Detection</value>
   </data>
-  <data name="GameSaveDetector_Initializing" xml:space="preserve">
+    <data name="GameSaveDetector_Initializing" xml:space="preserve">
     <value>Initializing save detection...</value>
   </data>
-  <data name="GameSaveDetector_Monitoring" xml:space="preserve">
+    <data name="GameSaveDetector_Monitoring" xml:space="preserve">
     <value>Monitoring file changes...</value>
   </data>
-  <data name="GameSaveDetector_Success" xml:space="preserve">
+    <data name="GameSaveDetector_Success" xml:space="preserve">
     <value>Detected: {0}</value>
   </data>
-  <data name="GameSaveDetector_NotFound" xml:space="preserve">
+    <data name="GameSaveDetector_NotFound" xml:space="preserve">
     <value>No save detected</value>
   </data>
-  <data name="GameSaveDetector_Failed" xml:space="preserve">
+    <data name="GameSaveDetector_Failed" xml:space="preserve">
     <value>Save detection failed</value>
   </data>
-  <data name="GameSaveDetector_ProcessNotFound" xml:space="preserve">
+    <data name="GameSaveDetector_ProcessNotFound" xml:space="preserve">
     <value>Game process not found</value>
   </data>
-  <data name="GameSaveDetector_Cancelled" xml:space="preserve">
+    <data name="GameSaveDetector_Cancelled" xml:space="preserve">
     <value>Task Cancelled</value>
   </data>
-  <data name="GameSaveDetector_Timeout" xml:space="preserve">
+    <data name="GameSaveDetector_Timeout" xml:space="preserve">
     <value>Detection timeout (max time reached)</value>
   </data>
 </root>

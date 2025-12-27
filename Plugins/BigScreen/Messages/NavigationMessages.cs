@@ -14,6 +14,11 @@ public enum BigScreenNavMode
     Overlay
 }
 
-public record BigScreenNavigateMessage(BigScreenRoute Route, object? Parameter = null, BigScreenNavMode Mode = BigScreenNavMode.Main);
+public record BigScreenNavigateMessage(
+    BigScreenRoute Route,
+    object? Parameter = null,
+    BigScreenNavMode Mode = BigScreenNavMode.Main);
+
 public record BigScreenCloseOverlayMessage();
+
 public record PlayGameMessage(Galgame Game);

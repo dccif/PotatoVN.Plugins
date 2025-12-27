@@ -46,7 +46,7 @@ public sealed class HomePage : Page, IBigScreenPage
     public HomePage(List<Galgame> games)
     {
         ViewModel = new HomeViewModel(games);
-        this.XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled;
+        XYFocusKeyboardNavigation = XYFocusKeyboardNavigationMode.Enabled;
 
         var scaffold = new BigScreenScaffold();
         Content = scaffold;
@@ -130,7 +130,7 @@ public sealed class HomePage : Page, IBigScreenPage
         _libraryGridView.ItemContainerStyle = BuildLibraryItemContainerStyle();
         contentStack.Children.Add(_libraryGridView);
 
-        string libraryTemplate = @"
+        var libraryTemplate = @"
 <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
     <Grid MinWidth='160' MinHeight='240' Margin='6' Background='#2d3440' CornerRadius='6'>
         <Grid.RowDefinitions>
@@ -177,7 +177,8 @@ public sealed class HomePage : Page, IBigScreenPage
         PopulateRecentGames();
         UpdateFocusMap();
 
-        var binding = new Binding { Source = ViewModel, Path = new PropertyPath("LibraryGames"), Mode = BindingMode.OneWay };
+        var binding = new Binding
+            { Source = ViewModel, Path = new PropertyPath("LibraryGames"), Mode = BindingMode.OneWay };
         BindingOperations.SetBinding(_libraryGridView, ItemsControl.ItemsSourceProperty, binding);
 
         _libraryGridView.ItemClick += (s, e) =>
@@ -197,27 +198,18 @@ public sealed class HomePage : Page, IBigScreenPage
         _libraryGridView.Loaded += (s, e) => UpdateLibraryItemSize();
         _libraryGridView.SizeChanged += (s, e) => UpdateLibraryItemSize();
         // Overlay position is synced via CompositionTarget.Rendering while focused.
-        if (XamlRoot != null)
-        {
-            XamlRoot.Changed += (s, e) => UpdateLibraryItemSize();
-        }
+        if (XamlRoot != null) XamlRoot.Changed += (s, e) => UpdateLibraryItemSize();
 
         // Auto-center library items vertically
         _libraryGridView.GotFocus += (s, e) =>
         {
-            if (e.OriginalSource is FrameworkElement item)
-            {
-                CenterVerticalInMainScroll(item);
-            }
+            if (e.OriginalSource is FrameworkElement item) CenterVerticalInMainScroll(item);
         };
 
         // Track Focus
-        this.GotFocus += (s, e) =>
+        GotFocus += (s, e) =>
         {
-            if (e.OriginalSource is Control control)
-            {
-                _lastFocusedControl = control;
-            }
+            if (e.OriginalSource is Control control) _lastFocusedControl = control;
         };
 
         // Events
@@ -225,20 +217,17 @@ public sealed class HomePage : Page, IBigScreenPage
         {
             RefreshHints(InputManager.CurrentInput);
             InputManager.InputChanged += RefreshHints;
-            this.KeyDown += OnKeyDown;
+            KeyDown += OnKeyDown;
 
             await System.Threading.Tasks.Task.Delay(100);
 
-            if (_lastFocusedControl == null)
-            {
-                FocusInitial();
-            }
+            if (_lastFocusedControl == null) FocusInitial();
         };
 
         Unloaded += (s, args) =>
         {
             InputManager.InputChanged -= RefreshHints;
-            this.KeyDown -= OnKeyDown;
+            KeyDown -= OnKeyDown;
         };
     }
 
@@ -296,7 +285,8 @@ public sealed class HomePage : Page, IBigScreenPage
 
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA && e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
+        var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA &&
+                        e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
         InputManager.ReportInput(isGamepad ? InputDeviceType.Gamepad : InputDeviceType.Keyboard);
     }
 
@@ -307,6 +297,7 @@ public sealed class HomePage : Page, IBigScreenPage
             if (node == parent) return true;
             node = VisualTreeHelper.GetParent(node);
         }
+
         return false;
     }
 
@@ -327,12 +318,8 @@ public sealed class HomePage : Page, IBigScreenPage
         if (!IsDownKey(e.Key)) return;
 
         if (sender is FrameworkElement element)
-        {
             if (FocusNearestLibraryItem(element))
-            {
                 e.Handled = true;
-            }
-        }
     }
 
     private void OnLibraryItemKeyDown(object sender, KeyRoutedEventArgs e)
@@ -340,12 +327,8 @@ public sealed class HomePage : Page, IBigScreenPage
         if (!IsUpKey(e.Key)) return;
 
         if (sender is GridViewItem item && IsAtTopRow(item))
-        {
             if (FocusNearestRecentItem(item))
-            {
                 e.Handled = true;
-            }
-        }
     }
 
     private void AttachLibraryItemOverlay(GridViewItem item)
@@ -386,10 +369,7 @@ public sealed class HomePage : Page, IBigScreenPage
             item.LostFocus -= OnLibraryItemLostFocus;
             item.Unloaded -= OnLibraryItemUnloaded;
             item.LayoutUpdated -= OnLibraryItemLayoutUpdated;
-            if (_overlayItem == item)
-            {
-                HideLibraryOverlay();
-            }
+            if (_overlayItem == item) HideLibraryOverlay();
         }
     }
 
@@ -397,9 +377,7 @@ public sealed class HomePage : Page, IBigScreenPage
     {
         UpdateLibraryOverlayPosition();
         if (sender is GridViewItem item && _overlayItem == item && _libraryOverlayImage?.Source == null)
-        {
             ApplyOverlayFromItem(item);
-        }
     }
 
     private void EnsureLibraryOverlay()
@@ -479,10 +457,7 @@ public sealed class HomePage : Page, IBigScreenPage
     private void HideLibraryOverlay()
     {
         _overlayItem = null;
-        if (_libraryOverlayCard != null)
-        {
-            _libraryOverlayCard.Visibility = Visibility.Collapsed;
-        }
+        if (_libraryOverlayCard != null) _libraryOverlayCard.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateLibraryOverlayPosition()
@@ -495,7 +470,8 @@ public sealed class HomePage : Page, IBigScreenPage
         try
         {
             var transform = _overlayItem.TransformToVisual(root);
-            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, _overlayItem.ActualWidth, _overlayItem.ActualHeight));
+            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, _overlayItem.ActualWidth,
+                _overlayItem.ActualHeight));
 
             _libraryOverlayCard.Width = rect.Width;
             _libraryOverlayCard.Height = rect.Height;
@@ -543,17 +519,11 @@ public sealed class HomePage : Page, IBigScreenPage
 
         var image = FindDescendant<Image>(item);
         if (image?.Source != null)
-        {
             _libraryOverlayImage.Source = image.Source;
-        }
         else if (item.DataContext is Galgame game)
-        {
             _libraryOverlayImage.Source = CreateImageSource(game.ImagePath.Value);
-        }
         else
-        {
             _libraryOverlayImage.Source = null;
-        }
 
         if (item.DataContext is Galgame g)
         {
@@ -581,10 +551,7 @@ public sealed class HomePage : Page, IBigScreenPage
 
     private static Uri ToImageUri(string path)
     {
-        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute))
-        {
-            return absolute;
-        }
+        if (Uri.TryCreate(path, UriKind.Absolute, out var absolute)) return absolute;
 
         var fullPath = path.Replace("\\", "/");
         return new Uri($"file:///{fullPath}", UriKind.Absolute);
@@ -593,19 +560,13 @@ public sealed class HomePage : Page, IBigScreenPage
     private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
     {
         var count = VisualTreeHelper.GetChildrenCount(root);
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             var child = VisualTreeHelper.GetChild(root, i);
-            if (child is T match)
-            {
-                return match;
-            }
+            if (child is T match) return match;
 
             var descendant = FindDescendant<T>(child);
-            if (descendant != null)
-            {
-                return descendant;
-            }
+            if (descendant != null) return descendant;
         }
 
         return null;
@@ -615,10 +576,7 @@ public sealed class HomePage : Page, IBigScreenPage
     {
         while (node != null)
         {
-            if (node is T match)
-            {
-                return match;
-            }
+            if (node is T match) return match;
 
             node = VisualTreeHelper.GetParent(node);
         }
@@ -637,16 +595,13 @@ public sealed class HomePage : Page, IBigScreenPage
         var availableWidth = XamlRoot?.Size.Width ?? _libraryGridView.ActualWidth;
         if (availableWidth <= 0) return;
 
-        if (XamlRoot != null)
-        {
-            _libraryGridView.Width = XamlRoot.Size.Width;
-        }
+        if (XamlRoot != null) _libraryGridView.Width = XamlRoot.Size.Width;
 
         var padding = LibraryHorizontalPadding * 2;
         availableWidth = Math.Max(0, availableWidth - padding);
         if (availableWidth <= 0) return;
 
-        var slotMin = LibraryCardWidth + (LibraryCardMargin * 2);
+        var slotMin = LibraryCardWidth + LibraryCardMargin * 2;
         var columns = Math.Max(1, (int)Math.Floor(availableWidth / slotMin));
         var rowWidth = columns * slotMin;
         var extra = Math.Max(0, (availableWidth - rowWidth) / 2);
@@ -654,7 +609,7 @@ public sealed class HomePage : Page, IBigScreenPage
         var contentHeight = contentWidth * LibraryAspect;
 
         _libraryItemsPanel.ItemWidth = slotMin;
-        _libraryItemsPanel.ItemHeight = contentHeight + (LibraryCardMargin * 2);
+        _libraryItemsPanel.ItemHeight = contentHeight + LibraryCardMargin * 2;
         _libraryGridView.Padding = new Thickness(
             LibraryHorizontalPadding + extra,
             0,
@@ -665,8 +620,8 @@ public sealed class HomePage : Page, IBigScreenPage
     private static Style BuildLibraryItemContainerStyle()
     {
         var style = new Style(typeof(GridViewItem));
-        style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
-        style.Setters.Add(new Setter(Control.VerticalContentAlignmentProperty, VerticalAlignment.Stretch));
+        style.Setters.Add(new Setter(HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+        style.Setters.Add(new Setter(VerticalContentAlignmentProperty, VerticalAlignment.Stretch));
         return style;
     }
 
@@ -680,10 +635,9 @@ public sealed class HomePage : Page, IBigScreenPage
 
         var sourceCenter = GetCenterX(root, source);
         GridViewItem? best = null;
-        double bestDelta = double.MaxValue;
+        var bestDelta = double.MaxValue;
 
         foreach (var child in panel.Children)
-        {
             if (child is GridViewItem item)
             {
                 var delta = Math.Abs(GetCenterX(root, item) - sourceCenter);
@@ -693,7 +647,6 @@ public sealed class HomePage : Page, IBigScreenPage
                     best = item;
                 }
             }
-        }
 
         if (best != null)
         {
@@ -713,10 +666,9 @@ public sealed class HomePage : Page, IBigScreenPage
 
         var sourceCenter = GetCenterX(root, source);
         Control? best = null;
-        double bestDelta = double.MaxValue;
+        var bestDelta = double.MaxValue;
 
         foreach (var child in _recentListPanel.Children)
-        {
             if (child is Control item)
             {
                 var delta = Math.Abs(GetCenterX(root, item) - sourceCenter);
@@ -726,7 +678,6 @@ public sealed class HomePage : Page, IBigScreenPage
                     best = item;
                 }
             }
-        }
 
         if (best != null)
         {
@@ -742,8 +693,9 @@ public sealed class HomePage : Page, IBigScreenPage
     private static double GetCenterX(UIElement root, FrameworkElement element)
     {
         var transform = element.TransformToVisual(root);
-        var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
-        return rect.X + (rect.Width / 2);
+        var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth,
+            element.ActualHeight));
+        return rect.X + rect.Width / 2;
     }
 
     private void CenterInScrollViewer(ScrollViewer scroll, FrameworkElement element)
@@ -751,15 +703,18 @@ public sealed class HomePage : Page, IBigScreenPage
         try
         {
             var transform = element.TransformToVisual(scroll);
-            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth,
+                element.ActualHeight));
 
-            double scrollCenter = scroll.HorizontalOffset + (scroll.ViewportWidth / 2);
-            double itemCenter = scroll.HorizontalOffset + rect.X + (rect.Width / 2);
-            double offset = itemCenter - (scroll.ViewportWidth / 2);
+            var scrollCenter = scroll.HorizontalOffset + scroll.ViewportWidth / 2;
+            var itemCenter = scroll.HorizontalOffset + rect.X + rect.Width / 2;
+            var offset = itemCenter - scroll.ViewportWidth / 2;
 
             scroll.ChangeView(offset, null, null);
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private void CenterVerticalInMainScroll(FrameworkElement element)
@@ -767,22 +722,22 @@ public sealed class HomePage : Page, IBigScreenPage
         try
         {
             var transform = element.TransformToVisual(_mainScroll);
-            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            var rect = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth,
+                element.ActualHeight));
 
-            double relativeCenterY = rect.Y + (rect.Height / 2);
-            double targetRelativeY = _mainScroll.ViewportHeight / 2;
+            var relativeCenterY = rect.Y + rect.Height / 2;
+            var targetRelativeY = _mainScroll.ViewportHeight / 2;
 
-            double delta = relativeCenterY - targetRelativeY;
-            double targetOffset = _mainScroll.VerticalOffset + delta;
+            var delta = relativeCenterY - targetRelativeY;
+            var targetOffset = _mainScroll.VerticalOffset + delta;
 
             targetOffset = Math.Max(0, Math.Min(targetOffset, _mainScroll.ScrollableHeight));
 
-            if (Math.Abs(delta) > 10)
-            {
-                _mainScroll.ChangeView(null, targetOffset, null);
-            }
+            if (Math.Abs(delta) > 10) _mainScroll.ChangeView(null, targetOffset, null);
         }
-        catch { }
+        catch
+        {
+        }
     }
 
     private bool IsAtTopRow(GridViewItem item)
@@ -802,47 +757,36 @@ public sealed class HomePage : Page, IBigScreenPage
     private void RefreshHints(InputDeviceType type)
     {
         if (type == InputDeviceType.Gamepad)
-        {
             _footer.UpdateHints(new List<(string, string)>
             {
                 ("A", Plugin.GetLocalized("BigScreen_Select") ?? "Select"),
                 ("B", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
-        }
         else
-        {
             _footer.UpdateHints(new List<(string, string)>
             {
                 ("Enter", Plugin.GetLocalized("BigScreen_Select") ?? "Select"),
                 ("Esc", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
-        }
     }
 
     public bool TryActivateFocusedItem()
     {
-        if (_lastFocusedControl == null || ViewModel == null)
-        {
-            return false;
-        }
+        if (_lastFocusedControl == null || ViewModel == null) return false;
 
         if (_lastFocusedControl is RecentGameItem recentItem)
-        {
             if (recentItem.DataContext is Galgame recentGame)
             {
                 ViewModel.ItemClickCommand.Execute(recentGame);
                 return true;
             }
-        }
 
         if (_lastFocusedControl is GridViewItem gridItem)
-        {
             if (gridItem.DataContext is Galgame libraryGame)
             {
                 ViewModel.ItemClickCommand.Execute(libraryGame);
                 return true;
             }
-        }
 
         var ancestorItem = FindAncestor<GridViewItem>(_lastFocusedControl);
         if (ancestorItem?.DataContext is Galgame ancestorGame)
@@ -869,20 +813,13 @@ public sealed class HomePage : Page, IBigScreenPage
 
     private void UpdateFocusMap()
     {
-        if (_recentListPanel.Children.Count == 0)
-        {
-            return;
-        }
+        if (_recentListPanel.Children.Count == 0) return;
 
         _recentListPanel.XYFocusDown = _libraryGridView;
 
         foreach (var child in _recentListPanel.Children)
-        {
             if (child is UIElement element)
-            {
                 element.XYFocusDown = _libraryGridView;
-            }
-        }
     }
 
     private static bool IsDownKey(Windows.System.VirtualKey key)

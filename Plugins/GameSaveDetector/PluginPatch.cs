@@ -17,6 +17,7 @@ public static class PluginPatch
 
     // 标记是否处于“等待恢复”状态
     private static bool _isRestoring;
+
     // 暂存需要恢复的原始值
     private static bool? _pendingRestoreValue;
 
@@ -29,21 +30,24 @@ public static class PluginPatch
         try
         {
             // 1. 获取程序集和类型
-            Assembly? assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "GalgameManager");
-            Type? appType = assembly?.GetType("GalgameManager.App");
-            Type? interfaceType = assembly?.GetType("GalgameManager.Contracts.Services.ILocalSettingsService");
-            Type? keyValuesType = assembly?.GetType("GalgameManager.Enums.KeyValues");
+            var assembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "GalgameManager");
+            var appType = assembly?.GetType("GalgameManager.App");
+            var interfaceType = assembly?.GetType("GalgameManager.Contracts.Services.ILocalSettingsService");
+            var keyValuesType = assembly?.GetType("GalgameManager.Enums.KeyValues");
 
             if (appType == null || interfaceType == null || keyValuesType == null) return;
 
             // 2. 获取服务实例 (App.GetService<ILocalSettingsService>())
-            var getServiceMethod = appType.GetMethod("GetService", BindingFlags.Public | BindingFlags.Static)?.MakeGenericMethod(interfaceType);
+            var getServiceMethod = appType.GetMethod("GetService", BindingFlags.Public | BindingFlags.Static)
+                ?.MakeGenericMethod(interfaceType);
             _settingsService = getServiceMethod?.Invoke(null, null);
             if (_settingsService == null) return;
             _settingsServiceType = _settingsService.GetType();
 
             // 3. 获取 Key 字符串
-            _autoDetectKey = keyValuesType.GetField("AutoDetectSavePath", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as string;
+            _autoDetectKey = keyValuesType.GetField("AutoDetectSavePath", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null) as string;
             if (string.IsNullOrEmpty(_autoDetectKey)) return;
 
             var saveMethod = _settingsServiceType.GetMethod("SaveSettingAsync")?.MakeGenericMethod(typeof(bool));
@@ -63,9 +67,8 @@ public static class PluginPatch
 
                     // 如果原值是 true，则改为 false
                     if (currentVal == true)
-                    {
-                        await (Task)saveMethod.Invoke(_settingsService, [_autoDetectKey, false, false, false, null, false])!;
-                    }
+                        await (Task)saveMethod.Invoke(_settingsService,
+                            [_autoDetectKey, false, false, false, null, false])!;
                 }
             }
             else
@@ -76,11 +79,12 @@ public static class PluginPatch
 
             // 5. Harmony Hook
             _harmony = new Harmony("PotatoVN.App.PluginBase.SettingsViewModelPatch");
-            Type? settingsVmType = assembly?.GetType("GalgameManager.ViewModels.SettingsViewModel");
-            MethodInfo? onNavigatedTo = settingsVmType?.GetMethod("OnNavigatedTo");
+            var settingsVmType = assembly?.GetType("GalgameManager.ViewModels.SettingsViewModel");
+            var onNavigatedTo = settingsVmType?.GetMethod("OnNavigatedTo");
             if (settingsVmType != null && onNavigatedTo != null)
             {
-                var postfix = typeof(PluginPatch).GetMethod(nameof(SettingsViewModel_OnNavigatedTo_Postfix), BindingFlags.Static | BindingFlags.NonPublic);
+                var postfix = typeof(PluginPatch).GetMethod(nameof(SettingsViewModel_OnNavigatedTo_Postfix),
+                    BindingFlags.Static | BindingFlags.NonPublic);
                 _harmony.Patch(onNavigatedTo, postfix: new HarmonyMethod(postfix));
             }
         }
@@ -144,10 +148,9 @@ public static class PluginPatch
             {
                 var saveMethod = _settingsServiceType?.GetMethod("SaveSettingAsync")?.MakeGenericMethod(typeof(bool));
                 if (saveMethod != null)
-                {
                     // 1. 恢复后端设置
-                    await (Task)saveMethod.Invoke(_settingsService, [_autoDetectKey, originalValue, false, false, null, false])!;
-                }
+                    await (Task)saveMethod.Invoke(_settingsService,
+                        [_autoDetectKey, originalValue, false, false, null, false])!;
 
                 // 2. 标记恢复模式
                 // 由于用户卸载插件时通常不在 SettingsPage，我们不需要立即更新 UI。

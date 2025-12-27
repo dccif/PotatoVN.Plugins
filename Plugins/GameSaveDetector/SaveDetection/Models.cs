@@ -179,7 +179,7 @@ public static class Constants
         "google", "chrome", "mozilla", "firefox", "edge", "opera",
 
         // 社交通信软件
-        "xwechat_files","Tencent Files", "WeChat", "QQ", "WeChat Files", "deskgo", "WeChatWork", "Tencent",
+        "xwechat_files", "Tencent Files", "WeChat", "QQ", "WeChat Files", "deskgo", "WeChatWork", "Tencent",
 
         // 硬件相关目录
         "nvidia", "amd", "intel", "cuda", "rocm",
@@ -191,7 +191,8 @@ public static class Constants
         "config", "configuration", "settings", "preferences", "registry", "repair", "backup", "system restore",
 
         // 用户特定应用数据（非游戏相关）
-        "microsoft office", "office", "adobe", "photoshop", "autodesk", "skype", "teams", "zoom", "slack", "spotify", "itunes",
+        "microsoft office", "office", "adobe", "photoshop", "autodesk", "skype", "teams", "zoom", "slack", "spotify",
+        "itunes",
 
         // 防病毒和安全软件
         "kaspersky", "norton", "mcafee", "avast", "avg",
@@ -207,7 +208,8 @@ public static class Constants
     /// <summary>
     /// 文件后缀黑名单
     /// </summary>
-    public static readonly string[] ExtensionBlacklist = {
+    public static readonly string[] ExtensionBlacklist =
+    {
         ".exe", ".dll", ".lnk", ".ini", ".log", ".tmp", ".pdb", ".msi",
         ".ypf", ".arc", ".pak", ".xp3", ".dat", ".bin", ".ogg", ".wav", ".mp4", ".wmv", ".bik",
         ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".svg", ".ico", ".ttf", ".otf", ".woff", ".woff2"
@@ -223,17 +225,24 @@ public static class Constants
                 if (!string.IsNullOrEmpty(path))
                     roots.Add(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             }
+
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
             AddRoot(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-            var localLow = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)?.Replace("Local", "LocalLow");
+            var localLow = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                ?.Replace("Local", "LocalLow");
             AddRoot(localLow ?? "");
             AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games"));
             AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Saved Games"));
             AddRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Saved Games"));
         }
-        catch { { } }
+        catch
+        {
+            {
+            }
+        }
+
         return roots;
     }
 
@@ -247,9 +256,8 @@ public static class Constants
     {
         if (fileName.Length == 0) return false;
         foreach (var keyword in SaveFileKeywords)
-        {
-            if (fileName.Contains(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase)) return true;
-        }
+            if (fileName.Contains(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                return true;
         return false;
     }
 
@@ -257,32 +265,24 @@ public static class Constants
     {
         var score = 0;
         foreach (var pattern in SaveDirectoryPatterns)
-        {
-            if (directory.IndexOf(pattern.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += 8;
-        }
+            if (directory.IndexOf(pattern.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
+                score += 8;
         foreach (var suffix in ChineseLocalizationSuffixes)
-        {
             if (directory.EndsWith(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase) ||
                 directory.IndexOf($"_{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0 ||
                 directory.IndexOf($"-{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
-            {
                 score += 12;
-            }
-        }
+
         foreach (var suffix in SaveDirectorySuffixPatterns)
-        {
             if (directory.EndsWith(suffix.AsSpan(), StringComparison.OrdinalIgnoreCase)) score += 6;
             else if (directory.IndexOf($"_{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0 ||
                      directory.IndexOf($"-{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0 ||
                      directory.IndexOf($".{suffix}".AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
-            {
                 score += 4;
-            }
-        }
+
         foreach (var pattern in SpecialPathScores)
-        {
-            if (directory.IndexOf(pattern.Key.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) score += pattern.Value;
-        }
+            if (directory.IndexOf(pattern.Key.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
+                score += pattern.Value;
         return score;
     }
 
@@ -291,9 +291,8 @@ public static class Constants
         if (targetPath.IsEmpty || string.IsNullOrEmpty(currentAppPath)) return false;
         if (targetPath.StartsWith(currentAppPath.AsSpan(), StringComparison.OrdinalIgnoreCase)) return true;
         foreach (var keyword in ExcludePathKeywords)
-        {
-            if (targetPath.IndexOf(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0) return true;
-        }
+            if (targetPath.IndexOf(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
         return false;
     }
 }
@@ -328,11 +327,34 @@ public class SaveDetectorOptions
     public int MaxDetectionTimeSeconds { get; init; } = 300;
 }
 
-public enum ProviderSource { ETW, FileSystemWatcher, Polling }
-public enum IoOperation { Create, Write, Rename, Unknown }
-public enum LogLevel { Debug, Info, Warning, Error }
+public enum ProviderSource
+{
+    ETW,
+    FileSystemWatcher,
+    Polling
+}
 
-public record PathCandidate(string Path, ProviderSource Source, DateTime DetectedTime, IoOperation Op = IoOperation.Unknown);
+public enum IoOperation
+{
+    Create,
+    Write,
+    Rename,
+    Unknown
+}
+
+public enum LogLevel
+{
+    Debug,
+    Info,
+    Warning,
+    Error
+}
+
+public record PathCandidate(
+    string Path,
+    ProviderSource Source,
+    DateTime DetectedTime,
+    IoOperation Op = IoOperation.Unknown);
 
 internal class ScoredPath
 {
@@ -346,11 +368,16 @@ public interface ISaveDetectorLogger
     void Log(string message, LogLevel level);
 }
 
-internal class NullLogger : ISaveDetectorLogger { public void Log(string m, LogLevel l) { } }
+internal class NullLogger : ISaveDetectorLogger
+{
+    public void Log(string m, LogLevel l)
+    {
+    }
+}
 
 public class DetectionContext
 {
-    public System.Diagnostics.Process TargetProcess { get; }
+    public Process TargetProcess { get; }
     public CancellationToken Token { get; }
     public SaveDetectorOptions Settings { get; }
     public ConcurrentQueue<PathCandidate> Candidates { get; } = new();
@@ -360,9 +387,11 @@ public class DetectionContext
     public GalgameManager.Models.Galgame? Game { get; set; }
     public ISaveCandidateProvider? ActiveProvider { get; set; }
 
-    public DetectionContext(System.Diagnostics.Process p, CancellationToken t, ISaveDetectorLogger logger, SaveDetectorOptions? s = null)
+    public DetectionContext(Process p, CancellationToken t, ISaveDetectorLogger logger, SaveDetectorOptions? s = null)
     {
-        TargetProcess = p; Token = t; _logger = logger;
+        TargetProcess = p;
+        Token = t;
+        _logger = logger;
         Settings = s ?? new SaveDetectorOptions();
     }
 

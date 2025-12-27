@@ -26,20 +26,23 @@ public partial class Plugin : IPlugin, IPluginSetting
     {
         Id = new Guid("ae7cbd73-4664-4733-80c5-83d0b119a174"),
         Name = "大屏模式",
-        Description = "让你可以进入大屏模式",
+        Description = "让你可以进入大屏模式"
     };
 
     private static ResourceManager ResourceManager
     {
         get
         {
-            if (_resourceManager == null)
-                _resourceManager = new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
+            _resourceManager ??= new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources",
+                typeof(Plugin).Assembly);
             return _resourceManager;
         }
     }
 
-    internal static string? GetLocalized(string key) => ResourceManager.GetString(key, _pluginCulture);
+    internal static string? GetLocalized(string key)
+    {
+        return ResourceManager.GetString(key, _pluginCulture);
+    }
 
     public async Task InitializeAsync(IPotatoVnApi hostApi)
     {
@@ -48,7 +51,6 @@ public partial class Plugin : IPlugin, IPluginSetting
         XamlResourceLocatorFactory.packagePath = _hostApi.GetPluginPath();
         var dataJson = await _hostApi.GetDataAsync();
         if (!string.IsNullOrWhiteSpace(dataJson))
-        {
             try
             {
                 _data = System.Text.Json.JsonSerializer.Deserialize<PluginData>(dataJson) ?? new PluginData();
@@ -57,7 +59,7 @@ public partial class Plugin : IPlugin, IPluginSetting
             {
                 _data = new PluginData();
             }
-        }
+
         CurrentData = _data;
         _data.PropertyChanged += (_, _) => SaveData(); // 当Observable属性变化时自动保存数据，对于普通属性请手动调用SaveData
 
@@ -65,7 +67,7 @@ public partial class Plugin : IPlugin, IPluginSetting
         try
         {
             var language = _hostApi.Language;
-            string cultureCode = language switch
+            var cultureCode = language switch
             {
                 LanguageEnum.ChineseSimplified => "zh-CN",
                 LanguageEnum.English => "en-US",
@@ -111,4 +113,3 @@ public partial class Plugin : IPlugin, IPluginSetting
 
     protected Guid Id => Info.Id;
 }
-

@@ -26,18 +26,22 @@ public partial class Plugin : IPlugin, IPluginSetting
     {
         get
         {
-            _resourceManager ??= new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
+            _resourceManager ??=
+                new ResourceManager("PotatoVN.App.PluginBase.Properties.Resources", typeof(Plugin).Assembly);
             return _resourceManager;
         }
     }
 
-    internal static string? GetLocalized(string key) => ResourceManager.GetString(key, _pluginCulture);
+    internal static string? GetLocalized(string key)
+    {
+        return ResourceManager.GetString(key, _pluginCulture);
+    }
 
     public PluginInfo Info { get; } = new()
     {
         Id = new Guid("a8b3c9d2-4e7f-5a6b-8c9d-1e2f3a4b5c6d"),
         Name = "存档位置探测",
-        Description = "游戏存档位置探测器，使用算法实时监控文件变更，定位游戏存档位置。",
+        Description = "游戏存档位置探测器，使用算法实时监控文件变更，定位游戏存档位置。"
     };
 
     public async Task InitializeAsync(IPotatoVnApi hostApi)
@@ -46,7 +50,6 @@ public partial class Plugin : IPlugin, IPluginSetting
         XamlResourceLocatorFactory.packagePath = _hostApi.GetPluginPath();
         var dataJson = await _hostApi.GetDataAsync();
         if (!string.IsNullOrWhiteSpace(dataJson))
-        {
             try
             {
                 _data = System.Text.Json.JsonSerializer.Deserialize<PluginData>(dataJson) ?? new PluginData();
@@ -55,14 +58,14 @@ public partial class Plugin : IPlugin, IPluginSetting
             {
                 _data = new PluginData();
             }
-        }
+
         _data.PropertyChanged += (_, _) => SaveData();
 
         // Language Setup
         try
         {
             var language = _hostApi.Language;
-            string cultureCode = language switch
+            var cultureCode = language switch
             {
                 LanguageEnum.ChineseSimplified => "zh-CN",
                 LanguageEnum.English => "en-US",
@@ -102,7 +105,8 @@ public partial class Plugin : IPlugin, IPluginSetting
                 // Only proceed if DetectedSavePath is null
                 if (_activeGame.DetectedSavePath != null)
                 {
-                    Debug.WriteLine($"[Plugin] Save path already exists for {_activeGame.Name.Value}, skipping detection.");
+                    Debug.WriteLine(
+                        $"[Plugin] Save path already exists for {_activeGame.Name.Value}, skipping detection.");
                     return;
                 }
 
@@ -135,7 +139,10 @@ public partial class Plugin : IPlugin, IPluginSetting
                 return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
             }
         }
-        catch { return false; }
+        catch
+        {
+            return false;
+        }
     }
 
     public void RestartAsAdmin()
@@ -157,7 +164,8 @@ public partial class Plugin : IPlugin, IPluginSetting
         }
     }
 
-    public async Task OnUninstallAsync(bool deleteData, Action<TimeSpan> extendWaitHandler, System.Threading.CancellationToken cts)
+    public async Task OnUninstallAsync(bool deleteData, Action<TimeSpan> extendWaitHandler,
+        System.Threading.CancellationToken cts)
     {
         await PluginPatch.RestoreAsync();
     }

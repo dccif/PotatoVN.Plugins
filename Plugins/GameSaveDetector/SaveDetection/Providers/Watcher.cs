@@ -28,10 +28,7 @@ internal class WatcherProvider : ISaveCandidateProvider
 
         StartMonitoring(context, pathFilter);
 
-        if (_pendingPaths.Count > 0)
-        {
-            _ = RetryMonitoringAsync(context, pathFilter);
-        }
+        if (_pendingPaths.Count > 0) _ = RetryMonitoringAsync(context, pathFilter);
 
         return Task.CompletedTask;
     }
@@ -40,14 +37,15 @@ internal class WatcherProvider : ISaveCandidateProvider
     {
         _isMonitoring = false;
         foreach (var watcher in _watchers)
-        {
             try
             {
                 watcher.EnableRaisingEvents = false;
                 watcher.Dispose();
             }
-            catch { }
-        }
+            catch
+            {
+            }
+
         _watchers.Clear();
         _candidatePaths.Clear();
         _pendingPaths.Clear();
@@ -63,10 +61,7 @@ internal class WatcherProvider : ISaveCandidateProvider
             AddCandidatePath(game.LocalPath);
 
         // 2. Standard User Paths (From centralized GenericRoots)
-        foreach (var root in options.GenericRoots)
-        {
-            AddCandidatePath(root);
-        }
+        foreach (var root in options.GenericRoots) AddCandidatePath(root);
 
         // 3. Heuristic Paths
         AddHeuristicPaths(game, options);
@@ -74,10 +69,7 @@ internal class WatcherProvider : ISaveCandidateProvider
 
     private void AddCandidatePath(string path)
     {
-        if (!string.IsNullOrEmpty(path) && !_candidatePaths.Contains(path))
-        {
-            _candidatePaths.Add(path);
-        }
+        if (!string.IsNullOrEmpty(path) && !_candidatePaths.Contains(path)) _candidatePaths.Add(path);
     }
 
     private void AddHeuristicPaths(Galgame game, SaveDetectorOptions options)
@@ -98,10 +90,7 @@ internal class WatcherProvider : ISaveCandidateProvider
             foreach (var basePath in basePaths)
             {
                 var combinedPath = Path.Combine(basePath, keyword);
-                if (!IsPathExcluded(combinedPath, currentAppPath, options))
-                {
-                    AddCandidatePath(combinedPath);
-                }
+                if (!IsPathExcluded(combinedPath, currentAppPath, options)) AddCandidatePath(combinedPath);
             }
         }
     }
@@ -115,12 +104,9 @@ internal class WatcherProvider : ISaveCandidateProvider
         if (!string.IsNullOrEmpty(game.Developer?.Value)) keywords.Add(game.Developer.Value);
 
         if (game.Categories != null)
-        {
             foreach (var category in game.Categories)
-            {
-                if (category.Name != null) keywords.Add(category.Name);
-            }
-        }
+                if (category.Name != null)
+                    keywords.Add(category.Name);
 
         return keywords.Distinct().ToList();
     }
@@ -144,7 +130,8 @@ internal class WatcherProvider : ISaveCandidateProvider
 
         if (gameRoot != null && Directory.Exists(gameRoot))
         {
-            if (!string.IsNullOrEmpty(currentAppPath) && gameRoot.StartsWith(currentAppPath, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(currentAppPath) &&
+                gameRoot.StartsWith(currentAppPath, StringComparison.OrdinalIgnoreCase))
             {
                 context.Log($"[Watcher] Skipping game root because it is inside app path: {gameRoot}", LogLevel.Debug);
             }
@@ -181,33 +168,30 @@ internal class WatcherProvider : ISaveCandidateProvider
     private async Task RetryMonitoringAsync(DetectionContext context, Func<string, IoOperation, bool> pathFilter)
     {
         var gameRoot = context.Game?.LocalPath;
-        for (int i = 0; i < context.Settings.WatcherRetryCount; i++)
+        for (var i = 0; i < context.Settings.WatcherRetryCount; i++)
         {
             await Task.Delay(context.Settings.WatcherRetryIntervalMs, context.Token);
             if (!_isMonitoring || context.Token.IsCancellationRequested || context.TargetProcess.HasExited) return;
 
             var successfullyAdded = new List<string>();
             foreach (var path in _pendingPaths)
-            {
                 if (Directory.Exists(path))
                 {
                     context.Log($"[Watcher] [Retry {i + 1}] Path appeared, starting watch: {path}", LogLevel.Debug);
                     CreateFileSystemWatcher(path, context, pathFilter);
                     successfullyAdded.Add(path);
                 }
-            }
 
             foreach (var path in successfullyAdded) _pendingPaths.Remove(path);
             if (_pendingPaths.Count == 0) break;
         }
 
         if (_pendingPaths.Count > 0)
-        {
             context.Log($"[Watcher] Stopped retrying. {_pendingPaths.Count} paths still missing.", LogLevel.Debug);
-        }
     }
 
-    private void CreateFileSystemWatcher(string path, DetectionContext context, Func<string, IoOperation, bool> pathFilter)
+    private void CreateFileSystemWatcher(string path, DetectionContext context,
+        Func<string, IoOperation, bool> pathFilter)
     {
         try
         {
@@ -216,7 +200,8 @@ internal class WatcherProvider : ISaveCandidateProvider
                 IncludeSubdirectories = true,
                 EnableRaisingEvents = true,
                 InternalBufferSize = 65536,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.Attributes | NotifyFilters.CreationTime
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size |
+                               NotifyFilters.Attributes | NotifyFilters.CreationTime
             };
 
             FileSystemEventHandler handler = (s, e) =>
@@ -235,7 +220,8 @@ internal class WatcherProvider : ISaveCandidateProvider
 
                 if (pathFilter(e.FullPath, op))
                 {
-                    context.Candidates.Enqueue(new PathCandidate(e.FullPath, ProviderSource.FileSystemWatcher, DateTime.Now, op));
+                    context.Candidates.Enqueue(new PathCandidate(e.FullPath, ProviderSource.FileSystemWatcher,
+                        DateTime.Now, op));
                     context.Log($"[Watcher] Candidate Added: {e.FullPath}", LogLevel.Debug);
                 }
                 else

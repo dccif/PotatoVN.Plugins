@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <UserControl
     x:Class="PotatoVN.App.PluginBase.Controls.UserControl1"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -10,7 +11,7 @@
     <StackPanel Spacing="10" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock FontSize="24" Text="大家好，我是插件！" />
         <TextBlock Text="这是一个来自外部DLL的用户控件。" />
-        <Button x:Name="PluginButton" Content="点击我" Click="PluginButton_Click"/>
+        <Button x:Name="PluginButton" Content="点击我" Click="PluginButton_Click" />
         <TextBlock x:Name="StatusText" />
     </StackPanel>
 </UserControl>

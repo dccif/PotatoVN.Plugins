@@ -8,8 +8,7 @@ namespace PotatoVN.App.PluginBase.ViewModels;
 
 public partial class DetailViewModel : ObservableObject
 {
-    [ObservableProperty]
-    private Galgame _game;
+    [ObservableProperty] private Galgame _game;
 
     public DetailViewModel(Galgame game)
     {

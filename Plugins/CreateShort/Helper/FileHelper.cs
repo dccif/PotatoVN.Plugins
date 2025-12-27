@@ -16,18 +16,12 @@ public static class FileHelper
 
     public static async Task<string?> GetImageFolderPathAsync()
     {
-        if (string.IsNullOrEmpty(_pluginPath))
-        {
-            return null;
-        }
+        if (string.IsNullOrEmpty(_pluginPath)) return null;
 
         try
         {
             var imageDir = Path.Combine(_pluginPath, "Images");
-            if (!Directory.Exists(imageDir))
-            {
-                Directory.CreateDirectory(imageDir);
-            }
+            if (!Directory.Exists(imageDir)) Directory.CreateDirectory(imageDir);
             return await Task.FromResult(imageDir);
         }
         catch (Exception ex)

@@ -29,15 +29,15 @@ internal class AnalysisStep : IDetectionStep
         context.Log($"[Analysis] Waiting {STARTUP_GRACE_PERIOD_MS}ms for startup noise to settle...", LogLevel.Debug);
         await Task.Delay(STARTUP_GRACE_PERIOD_MS, context.Token);
 
-        int dropped = 0;
+        var dropped = 0;
         while (context.Candidates.TryDequeue(out _)) dropped++;
         if (dropped > 0)
             context.Log($"[Analysis] Dropped {dropped} candidates from startup grace period.", LogLevel.Debug);
 
         var currentBatch = new List<PathCandidate>();
         string? candidatePath = null;
-        int stabilityCounter = 0;
-        int currentCycleDelay = 5000;
+        var stabilityCounter = 0;
+        var currentCycleDelay = 5000;
 
         while (!context.Token.IsCancellationRequested && !context.TargetProcess.HasExited)
         {
@@ -50,7 +50,7 @@ internal class AnalysisStep : IDetectionStep
 
             // 2. Harvest fresh data
             currentBatch.Clear();
-            bool hasNewData = false;
+            var hasNewData = false;
             while (context.Candidates.TryDequeue(out var c))
             {
                 currentBatch.Add(c);
@@ -61,7 +61,8 @@ internal class AnalysisStep : IDetectionStep
 
             if (hasNewData)
             {
-                context.Log($"[Analysis] Processing batch of {currentBatch.Count} accumulated candidates...", LogLevel.Debug);
+                context.Log($"[Analysis] Processing batch of {currentBatch.Count} accumulated candidates...",
+                    LogLevel.Debug);
                 currentCycleWinner = analyzer.FindBestSaveDirectory(currentBatch, context.Settings, context.Game);
             }
 
@@ -72,21 +73,29 @@ internal class AnalysisStep : IDetectionStep
                 {
                     candidatePath = currentCycleWinner;
                     stabilityCounter = 1;
-                    context.Log($"[Analysis] Cycle 1: Potential candidate found: {candidatePath}. Stability: 1/{REQUIRED_STABILITY_CYCLES}", LogLevel.Debug);
+                    context.Log(
+                        $"[Analysis] Cycle 1: Potential candidate found: {candidatePath}. Stability: 1/{REQUIRED_STABILITY_CYCLES}",
+                        LogLevel.Debug);
                 }
                 else
                 {
                     if (string.Equals(currentCycleWinner, candidatePath, StringComparison.OrdinalIgnoreCase))
                     {
                         stabilityCounter++;
-                        context.Log($"[Analysis] Cycle {stabilityCounter}: Candidate verified again: {candidatePath}. Stability: {stabilityCounter}/{REQUIRED_STABILITY_CYCLES}", LogLevel.Debug);
+                        context.Log(
+                            $"[Analysis] Cycle {stabilityCounter}: Candidate verified again: {candidatePath}. Stability: {stabilityCounter}/{REQUIRED_STABILITY_CYCLES}",
+                            LogLevel.Debug);
                     }
                     else
                     {
-                        context.Log($"[Analysis] Mismatch! Expected '{candidatePath}', got '{currentCycleWinner}'. Resetting stability.", LogLevel.Warning);
+                        context.Log(
+                            $"[Analysis] Mismatch! Expected '{candidatePath}', got '{currentCycleWinner}'. Resetting stability.",
+                            LogLevel.Warning);
                         candidatePath = currentCycleWinner;
                         stabilityCounter = 1;
-                        context.Log($"[Analysis] Cycle 1: New potential candidate: {candidatePath}. Stability: 1/{REQUIRED_STABILITY_CYCLES}", LogLevel.Debug);
+                        context.Log(
+                            $"[Analysis] Cycle 1: New potential candidate: {candidatePath}. Stability: 1/{REQUIRED_STABILITY_CYCLES}",
+                            LogLevel.Debug);
                     }
                 }
             }
@@ -94,7 +103,9 @@ internal class AnalysisStep : IDetectionStep
             {
                 if (stabilityCounter > 0)
                 {
-                    context.Log($"[Analysis] Cycle failed (No valid winner/Silence). Resetting stability from {stabilityCounter} to 0.", LogLevel.Debug);
+                    context.Log(
+                        $"[Analysis] Cycle failed (No valid winner/Silence). Resetting stability from {stabilityCounter} to 0.",
+                        LogLevel.Debug);
                     stabilityCounter = 0;
                     candidatePath = null;
                 }
@@ -104,7 +115,9 @@ internal class AnalysisStep : IDetectionStep
             if (stabilityCounter >= REQUIRED_STABILITY_CYCLES && candidatePath != null)
             {
                 context.FinalPath = candidatePath;
-                context.Log($"[Analysis] Winner confirmed after {REQUIRED_STABILITY_CYCLES} strict cycles: {candidatePath}", LogLevel.Info);
+                context.Log(
+                    $"[Analysis] Winner confirmed after {REQUIRED_STABILITY_CYCLES} strict cycles: {candidatePath}",
+                    LogLevel.Info);
                 break;
             }
         }

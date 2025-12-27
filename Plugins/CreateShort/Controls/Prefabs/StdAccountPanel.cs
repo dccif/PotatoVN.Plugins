@@ -14,26 +14,39 @@ public sealed class StdAccountPanel : UserControl
         get => _titleText.Text;
         set => _titleText.Text = value;
     }
+
     public string UserName
     {
         get => _userNameText.Text;
         set => _userNameText.Text = value;
     }
+
     public string Description
     {
         get => _descText.Text;
         set => _descText.Text = value;
     }
+
     public string? Avatar
     {
         get => _avatarPath;
-        set { _avatarPath = value; UpdateAvatar(); }
+        set
+        {
+            _avatarPath = value;
+            UpdateAvatar();
+        }
     }
+
     public string DefaultAvatar
     {
         get => _defaultAvatarPath;
-        set { _defaultAvatarPath = value; UpdateAvatar(); }
+        set
+        {
+            _defaultAvatarPath = value;
+            UpdateAvatar();
+        }
     }
+
     public bool Expand
     {
         get => _expander.IsExpanded;
@@ -73,7 +86,7 @@ public sealed class StdAccountPanel : UserControl
             Width = 80,
             Height = 80,
             CornerRadius = new CornerRadius(15),
-            Background = _avatarBrush,
+            Background = _avatarBrush
         };
         _avatarPath = avatar;
         if (defaultAvatar != null) _defaultAvatarPath = defaultAvatar;

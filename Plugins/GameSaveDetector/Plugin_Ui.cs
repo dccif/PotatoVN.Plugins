@@ -19,9 +19,10 @@ public partial class Plugin
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        StdSetting adminModeSetting = new StdSetting(
+        var adminModeSetting = new StdSetting(
             GetLocalized("Ui_UseAdminMode") ?? "Use Admin Mode (ETW)",
-            GetLocalized("Ui_UseAdminModeDescription") ?? "In most cases, the standard watcher mode is sufficient. Only enable this if you know what you are doing.",
+            GetLocalized("Ui_UseAdminModeDescription") ??
+            "In most cases, the standard watcher mode is sufficient. Only enable this if you know what you are doing.",
             adminToggle);
         stdSetting.Children.Add(adminModeSetting);
 
@@ -34,9 +35,10 @@ public partial class Plugin
             };
             restartBtn.Click += (s, e) => RestartAsAdmin();
 
-            StdSetting restartSetting = new StdSetting(
+            var restartSetting = new StdSetting(
                 GetLocalized("Ui_AdminRequiredWarning") ?? "Administrator privileges required.",
-                GetLocalized("Ui_AdminRequiredDescription") ?? "Restart the application as administrator to enable ETW detection.",
+                GetLocalized("Ui_AdminRequiredDescription") ??
+                "Restart the application as administrator to enable ETW detection.",
                 restartBtn);
 
             restartSetting.Visibility = _data.UseAdminMode ? Visibility.Visible : Visibility.Collapsed;

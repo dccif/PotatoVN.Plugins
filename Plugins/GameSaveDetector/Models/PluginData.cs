@@ -19,6 +19,7 @@ public partial class PluginData : ObservableRecipient
     [ObservableProperty] private bool _useAdminMode = false;
 
     private bool? _originalAutoDetectValue;
+
     /// <summary>
     /// 原始的自动检测存档设置
     /// </summary>

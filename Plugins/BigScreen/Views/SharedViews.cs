@@ -6,7 +6,11 @@ using System.Collections.Generic;
 
 namespace PotatoVN.App.PluginBase.Views;
 
-public enum InputDeviceType { Keyboard, Gamepad }
+public enum InputDeviceType
+{
+    Keyboard,
+    Gamepad
+}
 
 public static class InputManager
 {
@@ -146,7 +150,7 @@ public class BigScreenScaffold : Grid
 
         Header = new BigScreenHeader();
         Children.Add(Header);
-        Grid.SetRow(Header, 0);
+        SetRow(Header, 0);
 
         _bodyPresenter = new ContentPresenter
         {
@@ -154,10 +158,10 @@ public class BigScreenScaffold : Grid
             VerticalAlignment = VerticalAlignment.Stretch
         };
         Children.Add(_bodyPresenter);
-        Grid.SetRow(_bodyPresenter, 1);
+        SetRow(_bodyPresenter, 1);
 
         Footer = new BigScreenFooter();
         Children.Add(Footer);
-        Grid.SetRow(Footer, 2);
+        SetRow(Footer, 2);
     }
 }

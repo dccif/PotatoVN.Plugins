@@ -20,7 +20,9 @@ public static class SaveDetector
         if (options != null) _options = options;
     }
 
-    public static async Task<string?> DetectAsync(Process process, CancellationToken token, GalgameManager.Models.Galgame? game = null, ISaveDetectorLogger? logger = null, SaveDetectorOptions? options = null)
+    public static async Task<string?> DetectAsync(Process process, CancellationToken token,
+        GalgameManager.Models.Galgame? game = null, ISaveDetectorLogger? logger = null,
+        SaveDetectorOptions? options = null)
     {
         var context = new DetectionContext(process, token, logger ?? _logger, options ?? _options)
         {
@@ -43,6 +45,7 @@ public static class SaveDetector
             context.ActiveProvider?.Stop();
             if (context.ActiveProvider is IDisposable d) d.Dispose();
         }
+
         return context.FinalPath;
     }
 

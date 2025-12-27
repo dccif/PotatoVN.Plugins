@@ -28,7 +28,8 @@ public class BigScreenWindow : Window
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy,
+        uint uFlags);
 
     [DllImport("user32.dll")]
     internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -46,7 +47,7 @@ public class BigScreenWindow : Window
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_FRAMECHANGED = 0x0020;
     private const uint SWP_SHOWWINDOW = 0x0040;
-    private static readonly IntPtr HWND_TOP = new IntPtr(0);
+    private static readonly IntPtr HWND_TOP = new(0);
     internal const int SW_MINIMIZE = 6;
     internal const int SW_RESTORE = 9;
 
@@ -65,10 +66,7 @@ public class BigScreenWindow : Window
             {
                 var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
                 SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                if (Content is BigScreenPage page)
-                {
-                    page.RequestFocus();
-                }
+                if (Content is BigScreenPage page) page.RequestFocus();
             }
         };
     }
@@ -97,12 +95,10 @@ public class BigScreenWindow : Window
         {
             // 1. Ensure we are in a basic state (Overlapped)
             if (appWindow.Presenter.Kind != AppWindowPresenterKind.Overlapped)
-            {
                 appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
-            }
 
             // 2. Identify the target monitor
-            if (GetCursorPos(out POINT lpPoint))
+            if (GetCursorPos(out var lpPoint))
             {
                 var displayArea = DisplayArea.GetFromPoint(
                     new Windows.Graphics.PointInt32(lpPoint.X, lpPoint.Y),
@@ -112,7 +108,7 @@ public class BigScreenWindow : Window
                 {
                     // 3. Remove standard Window styles (TitleBar, Borders) via P/Invoke
                     // This is more reliable than AppWindow for true borderless behavior
-                    int style = GetWindowLong(hWnd, GWL_STYLE);
+                    var style = GetWindowLong(hWnd, GWL_STYLE);
                     style &= ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
                     style |= WS_POPUP | WS_MAXIMIZE; // Add WS_POPUP and WS_MAXIMIZE to ensure taskbar coverage
                     SetWindowLong(hWnd, GWL_STYLE, style);

@@ -56,10 +56,7 @@ public sealed class BigScreenNavigator
             return;
         }
 
-        if (_mainPage != null)
-        {
-            RequestFocus(_mainPage);
-        }
+        if (_mainPage != null) RequestFocus(_mainPage);
     }
 
     public void Register(BigScreenRoute route, Func<object?, Page> factory, bool cache = true)
@@ -67,7 +64,8 @@ public sealed class BigScreenNavigator
         _routes[route] = new RouteEntry(factory, cache);
     }
 
-    public void Navigate(BigScreenRoute route, object? parameter = null, BigScreenNavMode mode = BigScreenNavMode.Main, bool addToHistory = true)
+    public void Navigate(BigScreenRoute route, object? parameter = null, BigScreenNavMode mode = BigScreenNavMode.Main,
+        bool addToHistory = true)
     {
         if (!_routes.TryGetValue(route, out var entry))
             throw new InvalidOperationException($"Route not registered: {route}");
@@ -83,17 +81,17 @@ public sealed class BigScreenNavigator
         }
     }
 
-    public void CloseOverlay() => CloseOverlay(true);
+    public void CloseOverlay()
+    {
+        CloseOverlay(true);
+    }
 
     public bool GoBack()
     {
         if (!CanGoBack) return false;
 
         var current = _currentMain;
-        if (current != null)
-        {
-            _forwardStack.Add(current);
-        }
+        if (current != null) _forwardStack.Add(current);
 
         var target = _backStack[^1];
         _backStack.RemoveAt(_backStack.Count - 1);
@@ -106,10 +104,7 @@ public sealed class BigScreenNavigator
         if (!CanGoForward) return false;
 
         var current = _currentMain;
-        if (current != null)
-        {
-            _backStack.Add(current);
-        }
+        if (current != null) _backStack.Add(current);
 
         var target = _forwardStack[^1];
         _forwardStack.RemoveAt(_forwardStack.Count - 1);
@@ -127,10 +122,7 @@ public sealed class BigScreenNavigator
         _mainHost.IsHitTestVisible = true;
         _overlayPage = null;
 
-        if (restoreFocus && _mainPage != null)
-        {
-            RequestFocus(_mainPage);
-        }
+        if (restoreFocus && _mainPage != null) RequestFocus(_mainPage);
     }
 
     private void ShowMain(RouteEntry entry, BigScreenRoute route, object? parameter, bool addToHistory)
@@ -182,18 +174,12 @@ public sealed class BigScreenNavigator
 
     private static void NotifyNavigatedTo(Page page, object? parameter)
     {
-        if (page is IBigScreenPage bigScreenPage)
-        {
-            bigScreenPage.OnNavigatedTo(parameter);
-        }
+        if (page is IBigScreenPage bigScreenPage) bigScreenPage.OnNavigatedTo(parameter);
     }
 
     private static void NotifyNavigatedFrom(Page? page)
     {
-        if (page is IBigScreenPage bigScreenPage)
-        {
-            bigScreenPage.OnNavigatedFrom();
-        }
+        if (page is IBigScreenPage bigScreenPage) bigScreenPage.OnNavigatedFrom();
     }
 
     private static void RequestFocus(Page page)

@@ -32,16 +32,19 @@ public static class BigScreenInputPatch
 
             var onNavigatedTo = AccessTools.Method(pageType, "OnNavigatedTo");
             if (onNavigatedTo != null)
-                harmony.Patch(onNavigatedTo, postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnNavigatedToPostfix)));
+                harmony.Patch(onNavigatedTo,
+                    postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnNavigatedToPostfix)));
 
             var onNavigatedFrom = AccessTools.Method(pageType, "OnNavigatedFrom");
             if (onNavigatedFrom != null)
-                harmony.Patch(onNavigatedFrom, postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnNavigatedFromPostfix)));
+                harmony.Patch(onNavigatedFrom,
+                    postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnNavigatedFromPostfix)));
 
             var frameType = typeof(Frame);
             var onFrameNavigated = AccessTools.Method(frameType, "OnNavigated");
             if (onFrameNavigated != null)
-                harmony.Patch(onFrameNavigated, postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnFrameNavigatedPostfix)));
+                harmony.Patch(onFrameNavigated,
+                    postfix: new HarmonyMethod(typeof(BigScreenInputPatch), nameof(OnFrameNavigatedPostfix)));
         }
         catch (Exception ex)
         {
@@ -51,18 +54,12 @@ public static class BigScreenInputPatch
 
     public static void OnNavigatedToPostfix(object __instance)
     {
-        if (__instance is Page page && IsTargetPage(page))
-        {
-            BigScreenActionHandler.Attach(page);
-        }
+        if (__instance is Page page && IsTargetPage(page)) BigScreenActionHandler.Attach(page);
     }
 
     public static void OnNavigatedFromPostfix(object __instance)
     {
-        if (__instance is Page page && IsTargetPage(page))
-        {
-            BigScreenActionHandler.Detach(page);
-        }
+        if (__instance is Page page && IsTargetPage(page)) BigScreenActionHandler.Detach(page);
     }
 
     public static void OnFrameNavigatedPostfix(object __instance)
@@ -70,13 +67,9 @@ public static class BigScreenInputPatch
         if (__instance is not Frame frame) return;
 
         if (frame.Content is Page page && IsTargetPage(page))
-        {
             BigScreenActionHandler.Attach(page);
-        }
         else
-        {
             BigScreenActionHandler.DetachActive();
-        }
     }
 
     private static bool IsTargetPage(Page page)
@@ -139,7 +132,8 @@ public static class BigScreenActionHandler
 
         // 2. Gamepad Polling
         _cts = new CancellationTokenSource();
-        _pollingTask = Task.Factory.StartNew(PollingLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        _pollingTask = Task.Factory.StartNew(PollingLoop, _cts.Token, TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
     }
 
     public static void Detach(Page page)
@@ -160,20 +154,14 @@ public static class BigScreenActionHandler
 
     public static void DetachActive()
     {
-        if (_activePage != null)
-        {
-            Detach(_activePage);
-        }
+        if (_activePage != null) Detach(_activePage);
     }
 
     private static void Page_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.F11)
         {
-            if (_activePage != null)
-            {
-                _dispatcher?.TryEnqueue(() => OpenBigScreen(_activePage));
-            }
+            if (_activePage != null) _dispatcher?.TryEnqueue(() => OpenBigScreen(_activePage));
             e.Handled = true;
         }
     }
@@ -209,22 +197,18 @@ public static class BigScreenActionHandler
     {
         var token = _cts!.Token;
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
-        bool wasPressed = false;
+        var wasPressed = false;
 
         while (!token.IsCancellationRequested && await timer.WaitForNextTickAsync(token))
-        {
             if (TryGetGuidePressed(out var isPressed))
             {
                 if (isPressed && !wasPressed)
-                {
                     _dispatcher?.TryEnqueue(() =>
                     {
                         if (_activePage != null) OpenBigScreen(_activePage);
                     });
-                }
                 wasPressed = isPressed;
             }
-        }
     }
 
     private static bool TryGetGuidePressed(out bool isPressed)
@@ -232,11 +216,10 @@ public static class BigScreenActionHandler
         isPressed = false;
         if (_xinputUnavailable) return false;
 
-        bool hasState = false;
+        var hasState = false;
         try
         {
-            for (int i = 0; i < 4; i++)
-            {
+            for (var i = 0; i < 4; i++)
                 if (XInputGetStateEx(i, out var state) == ERROR_SUCCESS)
                 {
                     hasState = true;
@@ -246,7 +229,6 @@ public static class BigScreenActionHandler
                         break;
                     }
                 }
-            }
         }
         catch (DllNotFoundException)
         {
@@ -282,7 +264,7 @@ public static class BigScreenActionHandler
             {
                 Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(220, 0, 0, 0)),
                 Width = page.XamlRoot.Size.Width,
-                Height = page.XamlRoot.Size.Height,
+                Height = page.XamlRoot.Size.Height
             };
 
             var stack = new StackPanel
@@ -335,10 +317,7 @@ public static class BigScreenActionHandler
                         if (vm != null)
                         {
                             var itemProp = vm.GetType().GetProperty("Item");
-                            if (itemProp != null)
-                            {
-                                initialGame = itemProp.GetValue(vm) as GalgameManager.Models.Galgame;
-                            }
+                            if (itemProp != null) initialGame = itemProp.GetValue(vm) as GalgameManager.Models.Galgame;
                         }
                     }
                 }
@@ -346,9 +325,11 @@ public static class BigScreenActionHandler
                 var appType = Application.Current.GetType();
                 var getServiceMethod = appType.GetMethod("GetService");
 
-                var serviceType = Type.GetType("GalgameManager.Contracts.Services.IGalgameCollectionService, GalgameManager.WinApp.Base")
-                                  ?? Type.GetType("GalgameManager.Contracts.Services.IGalgameCollectionService, GalgameManager.Core")
-                                  ?? Type.GetType("GalgameManager.Contracts.Services.IGalgameCollectionService, GalgameManager");
+                var serviceType =
+                    Type.GetType(
+                        "GalgameManager.Contracts.Services.IGalgameCollectionService, GalgameManager.WinApp.Base")
+                    ?? Type.GetType("GalgameManager.Contracts.Services.IGalgameCollectionService, GalgameManager.Core")
+                    ?? Type.GetType("GalgameManager.Contracts.Services.IGalgameCollectionService, GalgameManager");
 
                 if (getServiceMethod != null && serviceType != null)
                 {
@@ -360,13 +341,9 @@ public static class BigScreenActionHandler
                         {
                             var collection = galgamesProp.GetValue(service) as IEnumerable;
                             if (collection != null)
-                            {
                                 foreach (var item in collection)
-                                {
                                     if (item is GalgameManager.Models.Galgame g)
                                         games.Add(g);
-                                }
-                            }
                         }
                     }
                 }

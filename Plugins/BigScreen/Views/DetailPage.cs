@@ -83,7 +83,8 @@ public sealed class DetailPage : Page, IBigScreenPage
         UIElement CreateInfo(string label, Binding valueBinding)
         {
             var s = new StackPanel();
-            s.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)) });
+            s.Children.Add(new TextBlock
+                { Text = label, FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)) });
             var v = new TextBlock { FontSize = 16, Foreground = new SolidColorBrush(Colors.White) };
             v.SetBinding(TextBlock.TextProperty, valueBinding);
             s.Children.Add(v);
@@ -132,20 +133,25 @@ public sealed class DetailPage : Page, IBigScreenPage
         {
             RefreshHints(InputManager.CurrentInput);
             InputManager.InputChanged += RefreshHints;
-            this.KeyDown += OnKeyDown;
+            KeyDown += OnKeyDown;
 
             if (ViewModel == null) return;
 
             // Image
-            var imgBinding = new Binding { Source = ViewModel, Path = new PropertyPath("Game.HeaderImagePath.Value"), Mode = BindingMode.OneWay };
+            var imgBinding = new Binding
+            {
+                Source = ViewModel, Path = new PropertyPath("Game.HeaderImagePath.Value"), Mode = BindingMode.OneWay
+            };
             BindingOperations.SetBinding(bgImage, Image.SourceProperty, imgBinding);
 
             // Title
-            var titleBinding = new Binding { Source = ViewModel, Path = new PropertyPath("Game.Name.Value"), Mode = BindingMode.OneWay };
+            var titleBinding = new Binding
+                { Source = ViewModel, Path = new PropertyPath("Game.Name.Value"), Mode = BindingMode.OneWay };
             BindingOperations.SetBinding(titleBlock, TextBlock.TextProperty, titleBinding);
 
             // Desc
-            var descBinding = new Binding { Source = ViewModel, Path = new PropertyPath("Game.Description.Value"), Mode = BindingMode.OneWay };
+            var descBinding = new Binding
+                { Source = ViewModel, Path = new PropertyPath("Game.Description.Value"), Mode = BindingMode.OneWay };
             BindingOperations.SetBinding(descBlock, TextBlock.TextProperty, descBinding);
 
             // Set DataContext for meta info
@@ -161,34 +167,31 @@ public sealed class DetailPage : Page, IBigScreenPage
         Unloaded += (s, args) =>
         {
             InputManager.InputChanged -= RefreshHints;
-            this.KeyDown -= OnKeyDown;
+            KeyDown -= OnKeyDown;
         };
     }
 
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA && e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
+        var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA &&
+                        e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
         InputManager.ReportInput(isGamepad ? InputDeviceType.Gamepad : InputDeviceType.Keyboard);
     }
 
     private void RefreshHints(InputDeviceType type)
     {
         if (type == InputDeviceType.Gamepad)
-        {
             _footer.UpdateHints(new List<(string, string)>
             {
                 ("A", Plugin.GetLocalized("BigScreen_Launch") ?? "Launch"),
                 ("B", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
-        }
         else
-        {
             _footer.UpdateHints(new List<(string, string)>
             {
                 ("Enter", Plugin.GetLocalized("BigScreen_Launch") ?? "Launch"),
                 ("Esc", Plugin.GetLocalized("BigScreen_Back") ?? "Back")
             });
-        }
     }
 
     public void OnNavigatedTo(object? parameter)

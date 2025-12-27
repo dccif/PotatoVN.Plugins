@@ -47,6 +47,7 @@ public class SunshineApp
         get => _detachedToken ?? new JArray();
         set => _detachedToken = value;
     }
+
     private JToken? _detachedToken;
 
     [JsonIgnore]
@@ -63,6 +64,7 @@ public class SunshineApp
         get => _prepCmdToken ?? new JArray();
         set => _prepCmdToken = value;
     }
+
     private JToken? _prepCmdToken;
 
     [JsonIgnore]
@@ -79,6 +81,7 @@ public class SunshineApp
         get => _menuCmdToken ?? new JArray();
         set => _menuCmdToken = value;
     }
+
     private JToken? _menuCmdToken;
 
     [JsonIgnore]
@@ -99,7 +102,7 @@ public class SunshineApp
     public string Elevated
     {
         get => ElevatedRaw?.ToString()?.ToLower() ?? "false";
-        set => ElevatedRaw = (value == "false") ? null : value; // 写：如果是 false，存为 null (不写入)
+        set => ElevatedRaw = value == "false" ? null : value; // 写：如果是 false，存为 null (不写入)
     }
 
     [JsonProperty("auto-detach", NullValueHandling = NullValueHandling.Ignore)]
@@ -167,22 +170,20 @@ public static class JsonSafeParse
         if (token == null) return new List<T>();
 
         // 1. 如果是标准的数组
-        if (token.Type == JTokenType.Array)
-        {
-            return token.ToObject<List<T>>() ?? new List<T>();
-        }
+        if (token.Type == JTokenType.Array) return token.ToObject<List<T>>() ?? new List<T>();
 
         // 2. 某些怪异情况：如果是单个对象，但代码期望 List (容错)
         // 例如用户把 "prep-cmd": [...] 写成了 "prep-cmd": { ... }
         if (token.Type == JTokenType.Object)
-        {
             try
             {
-                T? item = token.ToObject<T>();
+                var item = token.ToObject<T>();
                 if (item != null) return new List<T> { item };
             }
-            catch { /* 忽略转换失败 */ }
-        }
+            catch
+            {
+                /* 忽略转换失败 */
+            }
 
         // 3. 其它情况 (String, Null, etc.) 全部返回空列表
         return new List<T>();
@@ -194,10 +195,7 @@ public static class JsonSafeParse
         if (token == null) return new Dictionary<K, V>();
 
         // 只有当它是真正的 Object 时才转换
-        if (token.Type == JTokenType.Object)
-        {
-            return token.ToObject<Dictionary<K, V>>() ?? new Dictionary<K, V>();
-        }
+        if (token.Type == JTokenType.Object) return token.ToObject<Dictionary<K, V>>() ?? new Dictionary<K, V>();
 
         // 如果是 String ("") 或其他类型，返回空字典，避免报错
         return new Dictionary<K, V>();

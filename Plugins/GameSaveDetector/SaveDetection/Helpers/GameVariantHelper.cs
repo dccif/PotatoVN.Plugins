@@ -15,12 +15,10 @@ public class GameVariantHelper
     {
         if (game == null) return new List<string>();
 
-        var gameIdentifier = $"{game.Name?.Value}_{game.ChineseName}_{game.OriginalName?.Value}_{game.Developer?.Value}";
+        var gameIdentifier =
+            $"{game.Name?.Value}_{game.ChineseName}_{game.OriginalName?.Value}_{game.Developer?.Value}";
 
-        if (_cachedVariants != null && _lastGameIdentifier == gameIdentifier)
-        {
-            return _cachedVariants;
-        }
+        if (_cachedVariants != null && _lastGameIdentifier == gameIdentifier) return _cachedVariants;
 
         var allVariants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -34,15 +32,9 @@ public class GameVariantHelper
 
         // 3. Category Variants
         if (game.Categories != null)
-        {
             foreach (var category in game.Categories)
-            {
                 if (!string.IsNullOrEmpty(category.Name))
-                {
                     GenerateNameVariants(category.Name, allVariants);
-                }
-            }
-        }
 
         _cachedVariants = allVariants.Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
         _lastGameIdentifier = gameIdentifier;
@@ -122,12 +114,8 @@ public class GameVariantHelper
         var lowerDev = developer.ToLowerInvariant();
 
         foreach (var kvp in Constants.DeveloperVariants)
-        {
             if (lowerDev.Contains(kvp.Key))
-            {
                 return kvp.Value;
-            }
-        }
 
         return new List<string>();
     }
@@ -137,37 +125,26 @@ public class GameVariantHelper
         var lowerName = name.ToLowerInvariant();
 
         foreach (var simplification in Constants.WordSimplifications)
-        {
             if (lowerName.Contains(simplification.Key))
-            {
                 foreach (var replacement in simplification.Value)
                 {
                     var simplified = lowerName.Replace(simplification.Key, replacement);
                     variants.Add(simplified);
 
                     var noSepVersion = simplified.Replace("_", "").Replace("-", "").Replace(" ", "");
-                    if (noSepVersion != simplified)
-                    {
-                        variants.Add(noSepVersion);
-                    }
+                    if (noSepVersion != simplified) variants.Add(noSepVersion);
                 }
-            }
-        }
     }
 
     private void ApplyJapaneseConversions(string name, HashSet<string> variants)
     {
         foreach (var mapping in Constants.JapaneseMappings)
-        {
             if (name.Contains(mapping.Key))
-            {
                 foreach (var variant in mapping.Value)
                 {
                     var converted = name.ToLowerInvariant().Replace(mapping.Key, variant);
                     variants.Add(converted);
                 }
-            }
-        }
     }
 
     private List<string> ApplyNumberConversions(string name)

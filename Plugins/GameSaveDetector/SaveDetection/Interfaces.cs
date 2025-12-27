@@ -15,9 +15,14 @@ public interface ISaveCandidateProvider
 
 public interface ISavePathAnalyzer
 {
-    bool IsValidPath(string path, SaveDetectorOptions options, GalgameManager.Models.Galgame? game = null, IoOperation op = IoOperation.Unknown);
-    string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options, GalgameManager.Models.Galgame? game = null);
+    bool IsValidPath(string path, SaveDetectorOptions options, GalgameManager.Models.Galgame? game = null,
+        IoOperation op = IoOperation.Unknown);
+
+    string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options,
+        GalgameManager.Models.Galgame? game = null);
 }
 
-public interface IDetectionStep { Task ExecuteAsync(DetectionContext context); }
-
+public interface IDetectionStep
+{
+    Task ExecuteAsync(DetectionContext context);
+}

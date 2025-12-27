@@ -28,14 +28,14 @@ public class RecentGameItem : Button
     {
         _game = game;
         DataContext = game;
-        this.Width = BaseWidth;
-        this.Height = HeightVal;
-        this.Padding = new Thickness(0);
-        this.BorderThickness = new Thickness(0);
-        this.CornerRadius = new CornerRadius(8);
-        this.Margin = new Thickness(6, 0, 6, 0);
-        this.Background = new SolidColorBrush(Colors.Transparent);
-        this.UseSystemFocusVisuals = false; // Disable default border
+        Width = BaseWidth;
+        Height = HeightVal;
+        Padding = new Thickness(0);
+        BorderThickness = new Thickness(0);
+        CornerRadius = new CornerRadius(8);
+        Margin = new Thickness(6, 0, 6, 0);
+        Background = new SolidColorBrush(Colors.Transparent);
+        UseSystemFocusVisuals = false; // Disable default border
 
         // Disable default button visual states interfering heavily (optional, but Button is easiest for Focus/Click)
 
@@ -78,7 +78,8 @@ public class RecentGameItem : Button
             {
                 StartPoint = new Windows.Foundation.Point(0.5, 0),
                 EndPoint = new Windows.Foundation.Point(0.5, 1),
-                GradientStops = {
+                GradientStops =
+                {
                     new GradientStop { Color = Colors.Transparent, Offset = 0 },
                     new GradientStop { Color = Color.FromArgb(200, 0, 0, 0), Offset = 1 }
                 }
@@ -114,7 +115,8 @@ public class RecentGameItem : Button
         // Expand
         _expandSb = new Storyboard();
 
-        var widthAnim = new DoubleAnimation { To = ExpandedWidth, Duration = TimeSpan.FromMilliseconds(200), EnableDependentAnimation = true };
+        var widthAnim = new DoubleAnimation
+            { To = ExpandedWidth, Duration = TimeSpan.FromMilliseconds(200), EnableDependentAnimation = true };
         Storyboard.SetTarget(widthAnim, this);
         Storyboard.SetTargetProperty(widthAnim, "Width");
         _expandSb.Children.Add(widthAnim);
@@ -132,7 +134,8 @@ public class RecentGameItem : Button
         // Collapse
         _collapseSb = new Storyboard();
 
-        var widthAnimRev = new DoubleAnimation { To = BaseWidth, Duration = TimeSpan.FromMilliseconds(200), EnableDependentAnimation = true };
+        var widthAnimRev = new DoubleAnimation
+            { To = BaseWidth, Duration = TimeSpan.FromMilliseconds(200), EnableDependentAnimation = true };
         Storyboard.SetTarget(widthAnimRev, this);
         Storyboard.SetTargetProperty(widthAnimRev, "Width");
         _collapseSb.Children.Add(widthAnimRev);
@@ -175,13 +178,13 @@ public class LibraryItemAnimationWrapper : Grid
     public LibraryItemAnimationWrapper()
     {
         _scale = new ScaleTransform { CenterX = 80, CenterY = 120 }; // Center of 160x240
-        this.RenderTransform = _scale;
+        RenderTransform = _scale;
 
         // Border for focus highlight
         _borderBrush = new SolidColorBrush(Colors.Transparent);
-        this.BorderBrush = _borderBrush;
-        this.BorderThickness = new Thickness(2);
-        this.CornerRadius = new CornerRadius(6);
+        BorderBrush = _borderBrush;
+        BorderThickness = new Thickness(2);
+        CornerRadius = new CornerRadius(6);
 
         // We need to listen to the PARENT GridViewItem's focus, because this Grid is inside the template.
         // Or we can rely on PointEnter.
@@ -199,14 +202,11 @@ public class LibraryItemAnimationWrapper : Grid
         // Hack: Listen to EffectiveViewportChanged or LayoutUpdated? No.
         // Register to the Parents GotFocus?
 
-        this.Loaded += (s, e) =>
+        Loaded += (s, e) =>
         {
             // Find parent GridViewItem
             var parent = VisualTreeHelper.GetParent(this);
-            while (parent != null && !(parent is GridViewItem))
-            {
-                parent = VisualTreeHelper.GetParent(parent);
-            }
+            while (parent != null && !(parent is GridViewItem)) parent = VisualTreeHelper.GetParent(parent);
 
             if (parent is GridViewItem item)
             {
@@ -226,11 +226,13 @@ public class LibraryItemAnimationWrapper : Grid
     {
         var sb = new Storyboard();
 
-        var animX = new DoubleAnimation { To = scale, Duration = TimeSpan.FromMilliseconds(150), EnableDependentAnimation = true };
+        var animX = new DoubleAnimation
+            { To = scale, Duration = TimeSpan.FromMilliseconds(150), EnableDependentAnimation = true };
         Storyboard.SetTarget(animX, _scale);
         Storyboard.SetTargetProperty(animX, "ScaleX");
 
-        var animY = new DoubleAnimation { To = scale, Duration = TimeSpan.FromMilliseconds(150), EnableDependentAnimation = true };
+        var animY = new DoubleAnimation
+            { To = scale, Duration = TimeSpan.FromMilliseconds(150), EnableDependentAnimation = true };
         Storyboard.SetTarget(animY, _scale);
         Storyboard.SetTargetProperty(animY, "ScaleY");
 
@@ -241,12 +243,12 @@ public class LibraryItemAnimationWrapper : Grid
         if (scale > 1.05)
         {
             // Show Border/Highlight visual if heavily focused
-            this.BorderBrush = new SolidColorBrush(Colors.White);
+            BorderBrush = new SolidColorBrush(Colors.White);
             Canvas.SetZIndex(this, 10); // Try to pop out
         }
         else
         {
-            this.BorderBrush = new SolidColorBrush(Colors.Transparent);
+            BorderBrush = new SolidColorBrush(Colors.Transparent);
             Canvas.SetZIndex(this, 0);
         }
     }

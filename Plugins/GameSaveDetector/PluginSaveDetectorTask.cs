@@ -64,7 +64,8 @@ public class PluginSaveDetectorTask : BgTaskBase
 
             if (_gameProcess == null || _gameProcess.HasExited)
             {
-                ChangeProgress(-1, 100, Plugin.GetLocalized("GameSaveDetector_ProcessNotFound") ?? "Game process not found");
+                ChangeProgress(-1, 100,
+                    Plugin.GetLocalized("GameSaveDetector_ProcessNotFound") ?? "Game process not found");
                 return;
             }
 
@@ -107,8 +108,8 @@ public class PluginSaveDetectorTask : BgTaskBase
             {
                 _game.DetectedSavePath = GamePortablePath.Create(context.FinalPath, _game.LocalPath);
 
-                string msgTemplate = Plugin.GetLocalized("GameSaveDetector_Success") ?? "Detected: {0}";
-                string msg = string.Format(msgTemplate, context.FinalPath);
+                var msgTemplate = Plugin.GetLocalized("GameSaveDetector_Success") ?? "Detected: {0}";
+                var msg = string.Format(msgTemplate, context.FinalPath);
 
                 ChangeProgress(1, 1, msg, true);
 
@@ -117,17 +118,13 @@ public class PluginSaveDetectorTask : BgTaskBase
             else
             {
                 if (CancellationToken.Value.IsCancellationRequested)
-                {
                     // Check if it was a timeout or manual cancellation
                     // Note: This is a bit of a heuristic since we don't have a separate timeout token,
                     // but we can check if the time elapsed is close to the limit.
                     // Or we just use a generic cancelled message, but user asked for "stopped" on timeout.
                     ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_Timeout") ?? "Detection timeout");
-                }
                 else
-                {
                     ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_NotFound") ?? "No save detected");
-                }
             }
         }
         catch (OperationCanceledException)
@@ -150,10 +147,10 @@ public class PluginSaveDetectorTask : BgTaskBase
     {
         if (string.IsNullOrEmpty(_game?.ExePath)) return null;
 
-        string exeName = Path.GetFileNameWithoutExtension(_game.ExePath);
+        var exeName = Path.GetFileNameWithoutExtension(_game.ExePath);
 
         // Wait using configurable time
-        for (int i = 0; i < _options.ProcessWaitTimeSeconds; i++)
+        for (var i = 0; i < _options.ProcessWaitTimeSeconds; i++)
         {
             if (CancellationToken != null && CancellationToken.Value.IsCancellationRequested) return null;
 
@@ -170,17 +167,17 @@ public class PluginSaveDetectorTask : BgTaskBase
                     if (pid != 0)
                     {
                         var p = Process.GetProcessById((int)pid);
-                        if (p != null && p.Id != Environment.ProcessId && !p.HasExited)
-                        {
-                            return p;
-                        }
+                        if (p != null && p.Id != Environment.ProcessId && !p.HasExited) return p;
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             await Task.Delay(1000);
         }
+
         return null;
     }
 
@@ -208,16 +205,17 @@ public class PluginSaveDetectorTask : BgTaskBase
     {
         private readonly PluginSaveDetectorTask _parent;
 
-        public BgTaskLogger(PluginSaveDetectorTask parent) => _parent = parent;
+        public BgTaskLogger(PluginSaveDetectorTask parent)
+        {
+            _parent = parent;
+        }
 
         public void Log(string message, LogLevel level)
         {
             // Only show Info/Warning/Error in UI to avoid spamming
             if (level >= LogLevel.Info && _parent.CurrentProgress != null)
-            {
                 // Keep the current percentage, just update message
                 _parent.ChangeProgress(_parent.CurrentProgress.Current, 1, message, false);
-            }
 
             // Always output to debug console for development
             Debug.WriteLine($"[PluginSaveDetectorTask] [{level}] {message}");

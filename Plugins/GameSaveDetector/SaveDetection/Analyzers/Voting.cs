@@ -18,24 +18,19 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
     public Action<string, LogLevel>? Logger { get; set; }
 
-    public bool IsValidPath(string path, SaveDetectorOptions options, Galgame? game = null, IoOperation op = IoOperation.Unknown)
+    public bool IsValidPath(string path, SaveDetectorOptions options, Galgame? game = null,
+        IoOperation op = IoOperation.Unknown)
     {
         if (string.IsNullOrWhiteSpace(path) || !path.Contains(':')) return false;
 
         // 0. Context Update
-        if (game != null && game != _cachedGame)
-        {
-            Prepare(game);
-        }
+        if (game != null && game != _cachedGame) Prepare(game);
 
         // 1. Global Path Blacklist (Strict)
-        if (IsBlacklisted(path, Constants.ExcludePathKeywords))
-        {
-            return false;
-        }
+        if (IsBlacklisted(path, Constants.ExcludePathKeywords)) return false;
 
         // 2. Game Variant Match (Layer 2 - The Primary Filter)
-        bool matchesGameVariant = false;
+        var matchesGameVariant = false;
         if (_cachedLowerVariants != null && _cachedLowerVariants.Count > 0)
         {
             var pathSpan = path.AsSpan();
@@ -62,21 +57,18 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             }
         }
 
-        if (matchesGameVariant)
-        {
-            return true;
-        }
+        if (matchesGameVariant) return true;
 
         // 3. Whitelist / Heuristic Fallback (Layer 3)
         var ext = Path.GetExtension(path).TrimStart('.');
-        bool isWhitelistedExt = Constants.SaveFileExtensions.Contains(ext);
-        bool hasSaveKeyword = Constants.ContainsSaveKeyword(Path.GetFileName(path).AsSpan());
+        var isWhitelistedExt = Constants.SaveFileExtensions.Contains(ext);
+        var hasSaveKeyword = Constants.ContainsSaveKeyword(Path.GetFileName(path).AsSpan());
 
-        bool isStandardPath = path.Contains("AppData", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("Saved Games", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("My Games", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("Documents", StringComparison.OrdinalIgnoreCase) ||
-                              path.Contains("Steam", StringComparison.OrdinalIgnoreCase);
+        var isStandardPath = path.Contains("AppData", StringComparison.OrdinalIgnoreCase) ||
+                             path.Contains("Saved Games", StringComparison.OrdinalIgnoreCase) ||
+                             path.Contains("My Games", StringComparison.OrdinalIgnoreCase) ||
+                             path.Contains("Documents", StringComparison.OrdinalIgnoreCase) ||
+                             path.Contains("Steam", StringComparison.OrdinalIgnoreCase);
 
         // A. Known Save Extension -> Accept
         if (isWhitelistedExt) return true;
@@ -88,7 +80,8 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         if (op == IoOperation.Write || op == IoOperation.Rename)
         {
             var dirName = Path.GetFileName(Path.GetDirectoryName(path));
-            if (!string.IsNullOrEmpty(dirName) && Constants.SaveDirectorySuffixPatterns.Any(p => dirName.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrEmpty(dirName) &&
+                Constants.SaveDirectorySuffixPatterns.Any(p => dirName.Contains(p, StringComparison.OrdinalIgnoreCase)))
                 return true;
         }
 
@@ -104,33 +97,33 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         if (game.Name?.Value is { } n) coreNames.Add(n);
         if (!string.IsNullOrEmpty(game.ChineseName)) coreNames.Add(game.ChineseName!);
         if (game.OriginalName?.Value is { } o) coreNames.Add(o);
-        _fuzzyMatchCoreVariants = coreNames.Where(v => !string.IsNullOrEmpty(v)).Select(v => v.ToLowerInvariant()).Distinct().ToList();
+        _fuzzyMatchCoreVariants = coreNames.Where(v => !string.IsNullOrEmpty(v)).Select(v => v.ToLowerInvariant())
+            .Distinct().ToList();
     }
 
     private bool IsBlacklisted(string path, IEnumerable<string> blacklist)
     {
         var pathSpan = path.AsSpan();
         foreach (var blocked in blacklist)
-        {
-            if (ContainsWholeWord(pathSpan, blocked.AsSpan())) return true;
-        }
+            if (ContainsWholeWord(pathSpan, blocked.AsSpan()))
+                return true;
         return false;
     }
 
     private bool ContainsWholeWord(ReadOnlySpan<char> text, ReadOnlySpan<char> word)
     {
-        int index = 0;
+        var index = 0;
         while (true)
         {
             var remaining = text.Slice(index);
-            int found = remaining.IndexOf(word, StringComparison.OrdinalIgnoreCase);
+            var found = remaining.IndexOf(word, StringComparison.OrdinalIgnoreCase);
             if (found < 0) return false;
 
-            int actualIndex = index + found;
-            int endIndex = actualIndex + word.Length;
+            var actualIndex = index + found;
+            var endIndex = actualIndex + word.Length;
 
-            bool startBoundary = actualIndex == 0 || !char.IsLetterOrDigit(text[actualIndex - 1]);
-            bool endBoundary = endIndex == text.Length || !char.IsLetterOrDigit(text[endIndex]);
+            var startBoundary = actualIndex == 0 || !char.IsLetterOrDigit(text[actualIndex - 1]);
+            var endBoundary = endIndex == text.Length || !char.IsLetterOrDigit(text[endIndex]);
 
             if (startBoundary && endBoundary) return true;
 
@@ -138,16 +131,14 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         }
     }
 
-    public string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options, Galgame? game = null)
+    public string? FindBestSaveDirectory(List<PathCandidate> candidates, SaveDetectorOptions options,
+        Galgame? game = null)
     {
         if (candidates == null || candidates.Count == 0) return null;
 
         Logger?.Invoke($"[Voting] Starting analysis with {candidates.Count} candidates", LogLevel.Debug);
 
-        if (game != null && game != _cachedGame)
-        {
-            Prepare(game);
-        }
+        if (game != null && game != _cachedGame) Prepare(game);
 
         var currentAppPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
         var gameRoot = game?.LocalPath;
@@ -179,7 +170,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             .OrderByDescending(g => g.LatestTime)
             .ToList();
 
-        for (int i = 0; i < sortedGroups.Count; i++)
+        for (var i = 0; i < sortedGroups.Count; i++)
         {
             var group = sortedGroups[i];
             var scored = new ScoredPath { Path = group.Dir };
@@ -190,10 +181,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
             scored.Score += CalculateBehaviorScore(group.Candidates);
 
-            foreach (var candidate in group.Candidates)
-            {
-                scored.Score += CalculateSaveFileScore(candidate.Path, options);
-            }
+            foreach (var candidate in group.Candidates) scored.Score += CalculateSaveFileScore(candidate.Path, options);
             scored.VoteCount = group.Candidates.Count;
 
             scored.Score += Constants.GetPathStructureScore(group.Dir.AsSpan());
@@ -209,18 +197,19 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         var similarityWinner = GetSimilarityMechanismWinner(candidates, options);
         if (similarityWinner != null)
         {
-            var normalizedSimilarityDir = similarityWinner.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var normalizedSimilarityDir =
+                similarityWinner.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (directoryScores.TryGetValue(normalizedSimilarityDir, out var scored))
             {
                 scored.Score += 500;
-                Logger?.Invoke($"[Voting] Filename similarity winner '{similarityWinner}' received Bonus (+500)", LogLevel.Debug);
+                Logger?.Invoke($"[Voting] Filename similarity winner '{similarityWinner}' received Bonus (+500)",
+                    LogLevel.Debug);
             }
         }
 
         foreach (var kvp in directoryScores)
-        {
-            Logger?.Invoke($"[Voting] Candidate: {kvp.Key} | Score: {kvp.Value.Score} | Votes: {kvp.Value.VoteCount}", LogLevel.Debug);
-        }
+            Logger?.Invoke($"[Voting] Candidate: {kvp.Key} | Score: {kvp.Value.Score} | Votes: {kvp.Value.VoteCount}",
+                LogLevel.Debug);
 
         var best = directoryScores.Values
             .Where(v => v.VoteCount >= options.MinVoteCountThreshold)
@@ -228,13 +217,9 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             .FirstOrDefault(v => v.Score >= options.ConfidenceScoreThreshold);
 
         if (best != null)
-        {
             Logger?.Invoke($"[Voting] Final Winner: {best.Path} (Score: {best.Score})", LogLevel.Debug);
-        }
         else
-        {
             Logger?.Invoke("[Voting] No winner found passing threshold.", LogLevel.Debug);
-        }
 
         return best?.Path;
     }
@@ -242,8 +227,8 @@ internal class VotingAnalyzer : ISavePathAnalyzer
     private double CalculateBehaviorScore(List<PathCandidate> candidates)
     {
         double score = 0;
-        bool hasWrite = candidates.Any(c => c.Op == IoOperation.Write);
-        bool hasRename = candidates.Any(c => c.Op == IoOperation.Rename);
+        var hasWrite = candidates.Any(c => c.Op == IoOperation.Write);
+        var hasRename = candidates.Any(c => c.Op == IoOperation.Rename);
 
         if (hasWrite) score += 50;
         if (hasRename) score += 30;
@@ -273,16 +258,11 @@ internal class VotingAnalyzer : ISavePathAnalyzer
         if (validCandidates.Count < 2) return null;
 
         var similarities = new List<(string Dir1, string Dir2, double Sim)>();
-        for (int i = 0; i < validCandidates.Count; i++)
+        for (var i = 0; i < validCandidates.Count; i++)
+        for (var j = i + 1; j < validCandidates.Count; j++)
         {
-            for (int j = i + 1; j < validCandidates.Count; j++)
-            {
-                var sim = JaroWinkler(validCandidates[i].Name.AsSpan(), validCandidates[j].Name);
-                if (sim >= SIMILARITY_THRESHOLD)
-                {
-                    similarities.Add((validCandidates[i].Dir, validCandidates[j].Dir, sim));
-                }
-            }
+            var sim = JaroWinkler(validCandidates[i].Name.AsSpan(), validCandidates[j].Name);
+            if (sim >= SIMILARITY_THRESHOLD) similarities.Add((validCandidates[i].Dir, validCandidates[j].Dir, sim));
         }
 
         if (similarities.Count == 0) return null;
@@ -295,7 +275,7 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             dirCounts[pair.Dir2] = dirCounts.GetValueOrDefault(pair.Dir2) + 1;
         }
 
-        int totalInvolvedPaths = topTwo.Count * 2;
+        var totalInvolvedPaths = topTwo.Count * 2;
         var winner = dirCounts.OrderByDescending(x => x.Value).FirstOrDefault(x => x.Value > totalInvolvedPaths / 2);
 
         return winner.Key;
@@ -323,13 +303,13 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             var score = 0.0;
             if (fileInfo.Length > 100 && fileInfo.Length < 10 * 1024 * 1024) score += 30;
 
-            if (Constants.ContainsSaveKeyword(Path.GetFileName(filePath).AsSpan()))
-            {
-                score += 100;
-            }
+            if (Constants.ContainsSaveKeyword(Path.GetFileName(filePath).AsSpan())) score += 100;
             return score;
         }
-        catch { return 0; }
+        catch
+        {
+            return 0;
+        }
     }
 
     private double CalculateDirectoryVariantMatchScore(string directory)
@@ -354,45 +334,46 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             }
             else
             {
-                int index = directorySpan.IndexOf(variantSpan, StringComparison.OrdinalIgnoreCase);
+                var index = directorySpan.IndexOf(variantSpan, StringComparison.OrdinalIgnoreCase);
                 if (index >= 0)
                 {
-                    bool startOk = index == 0 || IsSeparator(directory[index - 1]);
-                    bool endOk = (index + variant.Length == directory.Length) || IsSeparator(directory[index + variant.Length]);
+                    var startOk = index == 0 || IsSeparator(directory[index - 1]);
+                    var endOk = index + variant.Length == directory.Length ||
+                                IsSeparator(directory[index + variant.Length]);
                     if (startOk && endOk) totalScore = Math.Max(totalScore, 80);
                 }
             }
         }
 
         if (_fuzzyMatchCoreVariants != null)
-        {
             foreach (var core in _fuzzyMatchCoreVariants)
-            {
-                if (JaroWinkler(dirNameSpan, core) > 0.8) totalScore = Math.Max(totalScore, 200);
-            }
-        }
+                if (JaroWinkler(dirNameSpan, core) > 0.8)
+                    totalScore = Math.Max(totalScore, 200);
 
         return totalScore;
     }
 
-    private static bool IsSeparator(char c) => c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar;
+    private static bool IsSeparator(char c)
+    {
+        return c == Path.DirectorySeparatorChar || c == Path.AltDirectorySeparatorChar;
+    }
 
     private static double JaroWinkler(ReadOnlySpan<char> s1, string s2)
     {
         if (s1.IsEmpty || string.IsNullOrEmpty(s2)) return 0;
         int n = s1.Length, m = s2.Length;
-        int matchWindow = Math.Max(n, m) / 2 - 1;
+        var matchWindow = Math.Max(n, m) / 2 - 1;
 
-        Span<bool> s1Matches = n <= 256 ? stackalloc bool[n] : new bool[n];
-        Span<bool> s2Matches = m <= 256 ? stackalloc bool[m] : new bool[m];
+        var s1Matches = n <= 256 ? stackalloc bool[n] : new bool[n];
+        var s2Matches = m <= 256 ? stackalloc bool[m] : new bool[m];
 
         int matches = 0, transpositions = 0;
-        for (int i = 0; i < n; i++)
+        for (var i = 0; i < n; i++)
         {
-            int start = Math.Max(0, i - matchWindow);
-            int end = Math.Min(i + matchWindow + 1, m);
-            char c1 = char.ToLowerInvariant(s1[i]);
-            for (int j = start; j < end; j++)
+            var start = Math.Max(0, i - matchWindow);
+            var end = Math.Min(i + matchWindow + 1, m);
+            var c1 = char.ToLowerInvariant(s1[i]);
+            for (var j = start; j < end; j++)
             {
                 if (s2Matches[j] || c1 != s2[j]) continue;
                 s1Matches[i] = s2Matches[j] = true;
@@ -403,8 +384,8 @@ internal class VotingAnalyzer : ISavePathAnalyzer
 
         if (matches == 0) return 0;
 
-        int k = 0;
-        for (int i = 0; i < n; i++)
+        var k = 0;
+        for (var i = 0; i < n; i++)
         {
             if (!s1Matches[i]) continue;
             while (!s2Matches[k]) k++;
@@ -412,14 +393,12 @@ internal class VotingAnalyzer : ISavePathAnalyzer
             k++;
         }
 
-        double jaro = (matches / (double)n + matches / (double)m + (matches - transpositions / 2.0) / matches) / 3.0;
-        int prefix = 0;
-        int maxPrefix = Math.Min(4, Math.Min(n, m));
-        for (int i = 0; i < maxPrefix; i++)
-        {
+        var jaro = (matches / (double)n + matches / (double)m + (matches - transpositions / 2.0) / matches) / 3.0;
+        var prefix = 0;
+        var maxPrefix = Math.Min(4, Math.Min(n, m));
+        for (var i = 0; i < maxPrefix; i++)
             if (char.ToLowerInvariant(s1[i]) == s2[i]) prefix++;
             else break;
-        }
 
         return jaro + prefix * 0.1 * (1 - jaro);
     }

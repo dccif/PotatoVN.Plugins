@@ -10,11 +10,9 @@ namespace PotatoVN.App.PluginBase.ViewModels;
 
 public partial class HomeViewModel : ObservableObject
 {
-    [ObservableProperty]
-    private ObservableCollection<Galgame> _recentGames = new();
+    [ObservableProperty] private ObservableCollection<Galgame> _recentGames = new();
 
-    [ObservableProperty]
-    private ObservableCollection<Galgame> _libraryGames = new();
+    [ObservableProperty] private ObservableCollection<Galgame> _libraryGames = new();
 
     public HomeViewModel(List<Galgame> games)
     {
@@ -23,13 +21,14 @@ public partial class HomeViewModel : ObservableObject
         recentList.Sort((a, b) => b.LastPlayTime.CompareTo(a.LastPlayTime));
         // Take top 10 for the horizontal scroll
         var topRecent = new List<Galgame>();
-        int count = 0;
+        var count = 0;
         foreach (var g in recentList)
         {
             if (count >= 10) break;
             topRecent.Add(g);
             count++;
         }
+
         RecentGames = new ObservableCollection<Galgame>(topRecent);
 
         // 2. Prepare Library Games (User Preference)
@@ -58,8 +57,7 @@ public partial class HomeViewModel : ObservableObject
     private void ItemClick(Galgame? game)
     {
         if (game != null)
-        {
-            WeakReferenceMessenger.Default.Send(new BigScreenNavigateMessage(BigScreenRoute.Detail, game, BigScreenNavMode.Overlay));
-        }
+            WeakReferenceMessenger.Default.Send(new BigScreenNavigateMessage(BigScreenRoute.Detail, game,
+                BigScreenNavMode.Overlay));
     }
 }

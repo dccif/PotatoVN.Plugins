@@ -53,52 +53,48 @@ public sealed partial class BigScreenPage : Page
 
         // UI Construction: Two Layers
         _rootGrid = new Grid();
-        _mainLayer = new ContentControl { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
-        _overlayLayer = new ContentControl { HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Visibility = Visibility.Collapsed };
+        _mainLayer = new ContentControl
+        {
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch
+        };
+        _overlayLayer = new ContentControl
+        {
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch, Visibility = Visibility.Collapsed
+        };
 
         _rootGrid.Children.Add(_mainLayer);
         _rootGrid.Children.Add(_overlayLayer);
 
         Content = _rootGrid;
-        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
+        Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 32, 32, 32));
 
         _navigator = new BigScreenNavigator(_mainLayer, _overlayLayer);
-        _navigator.Register(BigScreenRoute.Home, _ => new HomePage(_games), cache: true);
+        _navigator.Register(BigScreenRoute.Home, _ => new HomePage(_games), true);
         _navigator.Register(BigScreenRoute.Detail, parameter =>
         {
-            if (parameter is Galgame game)
-            {
-                return new DetailPage(game);
-            }
+            if (parameter is Galgame game) return new DetailPage(game);
 
             throw new ArgumentException("Detail page requires a Galgame parameter.", nameof(parameter));
-        }, cache: false);
+        }, false);
 
         // Register Messenger
         WeakReferenceMessenger.Default.Register<BigScreenNavigateMessage>(this, (r, m) =>
         {
             _navigator.Navigate(m.Route, m.Parameter, m.Mode);
 
-            if (m.Route == BigScreenRoute.Detail && m.Parameter is Galgame game)
-            {
-                SyncToHost(game);
-            }
+            if (m.Route == BigScreenRoute.Detail && m.Parameter is Galgame game) SyncToHost(game);
         });
 
         WeakReferenceMessenger.Default.Register<BigScreenCloseOverlayMessage>(this, (r, m) =>
         {
             var wasDetail = _overlayLayer.Content is DetailPage;
             _navigator.CloseOverlay();
-            if (wasDetail)
-            {
-                SyncBackToHost();
-            }
+            if (wasDetail) SyncBackToHost();
         });
 
-        WeakReferenceMessenger.Default.Register<PlayGameMessage>(this, (r, m) =>
-        {
-            _ = PlayGameAsync(m.Game);
-        });
+        WeakReferenceMessenger.Default.Register<PlayGameMessage>(this, (r, m) => { _ = PlayGameAsync(m.Game); });
 
         WeakReferenceMessenger.Default.Register<GalgameStoppedMessage>(this, (r, m) =>
         {
@@ -113,10 +109,7 @@ public sealed partial class BigScreenPage : Page
         {
             _navigator.Navigate(BigScreenRoute.Home);
 
-            if (initialGame != null)
-            {
-                _navigator.Navigate(BigScreenRoute.Detail, initialGame, BigScreenNavMode.Overlay);
-            }
+            if (initialGame != null) _navigator.Navigate(BigScreenRoute.Detail, initialGame, BigScreenNavMode.Overlay);
 
             StartGamepadPolling();
         };
@@ -136,14 +129,11 @@ public sealed partial class BigScreenPage : Page
         _navigator.RequestFocusActivePage();
     }
 
-    private void BigScreenPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    private void BigScreenPage_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         var isGamepad = e.Key >= Windows.System.VirtualKey.GamepadA
-            && e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
-        if (isGamepad)
-        {
-            _lastSystemGamepadInputUtc = DateTime.UtcNow;
-        }
+                        && e.Key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
+        if (isGamepad) _lastSystemGamepadInputUtc = DateTime.UtcNow;
         InputManager.ReportInput(isGamepad ? InputDeviceType.Gamepad : InputDeviceType.Keyboard);
 
         if (e.Key == Windows.System.VirtualKey.GamepadA)
@@ -194,14 +184,15 @@ public sealed partial class BigScreenPage : Page
                 var reading = gamepad.GetCurrentReading();
                 var buttons = reading.Buttons;
 
-                bool suppressNavigation = (DateTime.UtcNow - _lastSystemGamepadInputUtc).TotalMilliseconds < SystemGamepadSuppressMs;
+                var suppressNavigation = (DateTime.UtcNow - _lastSystemGamepadInputUtc).TotalMilliseconds <
+                                         SystemGamepadSuppressMs;
 
-                bool up = ((buttons & GamepadButtons.DPadUp) != 0) || reading.LeftThumbstickY > ThumbThreshold;
-                bool down = ((buttons & GamepadButtons.DPadDown) != 0) || reading.LeftThumbstickY < -ThumbThreshold;
-                bool left = ((buttons & GamepadButtons.DPadLeft) != 0) || reading.LeftThumbstickX < -ThumbThreshold;
-                bool right = ((buttons & GamepadButtons.DPadRight) != 0) || reading.LeftThumbstickX > ThumbThreshold;
+                var up = (buttons & GamepadButtons.DPadUp) != 0 || reading.LeftThumbstickY > ThumbThreshold;
+                var down = (buttons & GamepadButtons.DPadDown) != 0 || reading.LeftThumbstickY < -ThumbThreshold;
+                var left = (buttons & GamepadButtons.DPadLeft) != 0 || reading.LeftThumbstickX < -ThumbThreshold;
+                var right = (buttons & GamepadButtons.DPadRight) != 0 || reading.LeftThumbstickX > ThumbThreshold;
 
-                bool anyInput = false;
+                var anyInput = false;
 
                 if (!suppressNavigation)
                 {
@@ -210,16 +201,19 @@ public sealed partial class BigScreenPage : Page
                         anyInput = true;
                         EnqueueMoveFocus(FocusNavigationDirection.Up);
                     }
+
                     if (down && !_previousDown)
                     {
                         anyInput = true;
                         EnqueueMoveFocus(FocusNavigationDirection.Down);
                     }
+
                     if (left && !_previousLeft)
                     {
                         anyInput = true;
                         EnqueueMoveFocus(FocusNavigationDirection.Left);
                     }
+
                     if (right && !_previousRight)
                     {
                         anyInput = true;
@@ -227,24 +221,21 @@ public sealed partial class BigScreenPage : Page
                     }
                 }
 
-                bool pressA = (buttons & GamepadButtons.A) != 0 && (_previousButtons & GamepadButtons.A) == 0;
+                var pressA = (buttons & GamepadButtons.A) != 0 && (_previousButtons & GamepadButtons.A) == 0;
                 if (pressA)
                 {
                     anyInput = true;
                     EnqueueInvokeFocused();
                 }
 
-                bool pressB = (buttons & GamepadButtons.B) != 0 && (_previousButtons & GamepadButtons.B) == 0;
+                var pressB = (buttons & GamepadButtons.B) != 0 && (_previousButtons & GamepadButtons.B) == 0;
                 if (pressB)
                 {
                     anyInput = true;
                     EnqueueBack();
                 }
 
-                if (anyInput)
-                {
-                    _dispatcher.TryEnqueue(() => InputManager.ReportInput(InputDeviceType.Gamepad));
-                }
+                if (anyInput) _dispatcher.TryEnqueue(() => InputManager.ReportInput(InputDeviceType.Gamepad));
 
                 _previousButtons = buttons;
                 _previousUp = up;
@@ -297,10 +288,7 @@ public sealed partial class BigScreenPage : Page
         {
             var wasDetail = _overlayLayer.Content is DetailPage;
             _navigator.CloseOverlay();
-            if (wasDetail)
-            {
-                SyncBackToHost();
-            }
+            if (wasDetail) SyncBackToHost();
         }
         else if (_navigator.CanGoBack)
         {
@@ -334,23 +322,17 @@ public sealed partial class BigScreenPage : Page
                 return;
             }
 
-            if (home.TryActivateFocusedItem())
-            {
-                return;
-            }
+            if (home.TryActivateFocusedItem()) return;
         }
 
         var gridItem = FindAncestor<GridViewItem>(focused);
-        if (gridItem != null)
-        {
-            InvokeViaAutomation(gridItem);
-        }
+        if (gridItem != null) InvokeViaAutomation(gridItem);
     }
 
     private static void InvokeViaAutomation(FrameworkElement element)
     {
         var peer = FrameworkElementAutomationPeer.FromElement(element)
-            ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
+                   ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
         if (peer == null) return;
 
         if (peer.GetPattern(PatternInterface.Invoke) is IInvokeProvider invokeProvider)
@@ -360,9 +342,7 @@ public sealed partial class BigScreenPage : Page
         }
 
         if (peer.GetPattern(PatternInterface.SelectionItem) is ISelectionItemProvider selectionProvider)
-        {
             selectionProvider.Select();
-        }
     }
 
     private static T? FindAncestor<T>(DependencyObject? node) where T : DependencyObject
@@ -378,10 +358,7 @@ public sealed partial class BigScreenPage : Page
 
     private static Galgame? ResolveFocusedGame(DependencyObject focused)
     {
-        if (focused is FrameworkElement element && element.DataContext is Galgame directGame)
-        {
-            return directGame;
-        }
+        if (focused is FrameworkElement element && element.DataContext is Galgame directGame) return directGame;
 
         var gridItem = FindAncestor<GridViewItem>(focused);
         if (gridItem == null)
@@ -389,48 +366,29 @@ public sealed partial class BigScreenPage : Page
             var gridView = FindAncestor<GridView>(focused);
             if (gridView != null)
             {
-                if (gridView.SelectedItem is Galgame selectedGame)
-                {
-                    return selectedGame;
-                }
+                if (gridView.SelectedItem is Galgame selectedGame) return selectedGame;
 
                 if (gridView.ItemsPanelRoot is Panel panel)
-                {
                     foreach (var child in panel.Children)
-                    {
                         if (child is Control control && control.FocusState != FocusState.Unfocused)
                         {
-                            if (control.DataContext is Galgame focusedGame)
-                            {
-                                return focusedGame;
-                            }
+                            if (control.DataContext is Galgame focusedGame) return focusedGame;
 
-                            if (control is FrameworkElement focusedElement && focusedElement.DataContext is Galgame elementGame)
-                            {
-                                return elementGame;
-                            }
+                            if (control is FrameworkElement focusedElement &&
+                                focusedElement.DataContext is Galgame elementGame) return elementGame;
                         }
-                    }
-                }
             }
 
             return null;
         }
 
-        if (gridItem.DataContext is Galgame game)
-        {
-            return game;
-        }
+        if (gridItem.DataContext is Galgame game) return game;
 
         if (gridItem.Content is FrameworkElement contentElement && contentElement.DataContext is Galgame contentGame)
-        {
             return contentGame;
-        }
 
-        if (gridItem.ContentTemplateRoot is FrameworkElement templateRoot && templateRoot.DataContext is Galgame rootGame)
-        {
-            return rootGame;
-        }
+        if (gridItem.ContentTemplateRoot is FrameworkElement templateRoot &&
+            templateRoot.DataContext is Galgame rootGame) return rootGame;
 
         return null;
     }
@@ -438,17 +396,11 @@ public sealed partial class BigScreenPage : Page
     private DependencyObject? GetFocusedElement()
     {
         var focused = FocusManager.GetFocusedElement() as DependencyObject;
-        if (focused != null)
-        {
-            return focused;
-        }
+        if (focused != null) return focused;
 
         _navigator.RequestFocusActivePage();
         focused = FocusManager.GetFocusedElement() as DependencyObject;
-        if (focused != null)
-        {
-            return focused;
-        }
+        if (focused != null) return focused;
 
         var root = GetFocusSearchRoot();
         if (root == null) return null;
@@ -458,20 +410,14 @@ public sealed partial class BigScreenPage : Page
 
     private static DependencyObject? FindFocusedDescendant(DependencyObject root)
     {
-        if (root is Control control && control.FocusState != FocusState.Unfocused)
-        {
-            return control;
-        }
+        if (root is Control control && control.FocusState != FocusState.Unfocused) return control;
 
         var count = VisualTreeHelper.GetChildrenCount(root);
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             var child = VisualTreeHelper.GetChild(root, i);
             var focused = FindFocusedDescendant(child);
-            if (focused != null)
-            {
-                return focused;
-            }
+            if (focused != null) return focused;
         }
 
         return null;
@@ -479,10 +425,7 @@ public sealed partial class BigScreenPage : Page
 
     private Page? GetActivePage()
     {
-        if (_navigator.IsOverlayOpen)
-        {
-            return _overlayLayer.Content as Page;
-        }
+        if (_navigator.IsOverlayOpen) return _overlayLayer.Content as Page;
 
         return _mainLayer.Content as Page;
     }
@@ -491,18 +434,12 @@ public sealed partial class BigScreenPage : Page
     {
         DependencyObject? root = null;
 
-        if (_navigator.IsOverlayOpen)
-        {
-            root = _overlayLayer.Content as DependencyObject;
-        }
+        if (_navigator.IsOverlayOpen) root = _overlayLayer.Content as DependencyObject;
 
         root ??= _mainLayer.Content as DependencyObject;
         root ??= _rootGrid;
 
-        if (root is FrameworkElement element && !element.IsLoaded)
-        {
-            return null;
-        }
+        if (root is FrameworkElement element && !element.IsLoaded) return null;
 
         return root;
     }
@@ -510,7 +447,6 @@ public sealed partial class BigScreenPage : Page
     private async void SyncToHost(Galgame game)
     {
         if (Plugin.HostApi != null)
-        {
             try
             {
                 var assembly = Assembly.Load("GalgameManager");
@@ -521,9 +457,12 @@ public sealed partial class BigScreenPage : Page
                 {
 #pragma warning disable CS8600
 #pragma warning disable CS8602
-                    await (Task)invokeMethod.Invoke(null, [ new Action(() =>
-                           Plugin.HostApi.NavigateTo(PageEnum.GalgamePage, new GalgamePageNavParameter { Galgame = game, StartGame = false })
-                    ) ]);
+                    await (Task)invokeMethod.Invoke(null, [
+                        new Action(() =>
+                            Plugin.HostApi.NavigateTo(PageEnum.GalgamePage,
+                                new GalgamePageNavParameter { Galgame = game, StartGame = false })
+                        )
+                    ]);
 #pragma warning restore CS8602
 #pragma warning restore CS8600
                 }
@@ -532,7 +471,6 @@ public sealed partial class BigScreenPage : Page
             {
                 System.Diagnostics.Debug.WriteLine($"[BigScreen] Nav Sync Error: {ex}");
             }
-        }
     }
 
     private async Task PlayGameAsync(Galgame game)
@@ -549,8 +487,8 @@ public sealed partial class BigScreenPage : Page
         try
         {
             var invokeOnUiThread = GetUiThreadInvoke();
-            bool invoked = false;
-            Action action = () =>
+            var invoked = false;
+            var action = () =>
             {
                 var viewModel = TryGetHostGalgameViewModel();
                 if (viewModel == null) return;
@@ -619,32 +557,34 @@ public sealed partial class BigScreenPage : Page
             var getServiceMethod = appType.GetMethod("GetService");
             if (getServiceMethod == null) return null;
 
-            var navServiceType = Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager.WinApp.Base")
+            var navServiceType =
+                Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager.WinApp.Base")
                 ?? Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager.Core")
                 ?? Type.GetType("GalgameManager.Contracts.Services.INavigationService, GalgameManager");
 
             object? navService = null;
             if (navServiceType != null)
-            {
                 navService = getServiceMethod.MakeGenericMethod(navServiceType).Invoke(Application.Current, null);
-            }
 
             var frame = navService != null ? TryGetFrame(navService) : null;
             if (frame == null)
             {
-                var navViewServiceType = Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.WinApp.Base")
+                var navViewServiceType =
+                    Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.WinApp.Base")
                     ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.Core")
                     ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager")
                     ?? Type.GetType("GalgameManager.Services.NavigationViewService, GalgameManager");
 
                 if (navViewServiceType != null)
                 {
-                    var navViewService = getServiceMethod.MakeGenericMethod(navViewServiceType).Invoke(Application.Current, null);
+                    var navViewService = getServiceMethod.MakeGenericMethod(navViewServiceType)
+                        .Invoke(Application.Current, null);
                     frame = navViewService != null ? TryGetFrame(navViewService) : null;
 
                     if (frame == null && navViewService != null)
                     {
-                        var navField = navViewService.GetType().GetField("_navigationService", BindingFlags.Instance | BindingFlags.NonPublic);
+                        var navField = navViewService.GetType().GetField("_navigationService",
+                            BindingFlags.Instance | BindingFlags.NonPublic);
                         var navObj = navField?.GetValue(navViewService);
                         frame = navObj != null ? TryGetFrame(navObj) : null;
                     }
@@ -654,10 +594,8 @@ public sealed partial class BigScreenPage : Page
             if (frame?.Content is Page page)
             {
                 var dataContext = page.DataContext;
-                if (dataContext != null && dataContext.GetType().FullName == "GalgameManager.ViewModels.GalgameViewModel")
-                {
-                    return dataContext;
-                }
+                if (dataContext != null &&
+                    dataContext.GetType().FullName == "GalgameManager.ViewModels.GalgameViewModel") return dataContext;
             }
 
             return null;
@@ -671,7 +609,8 @@ public sealed partial class BigScreenPage : Page
 
     private static Frame? TryGetFrame(object service)
     {
-        var frameProp = service.GetType().GetProperty("Frame", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var frameProp = service.GetType()
+            .GetProperty("Frame", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         return frameProp?.GetValue(service) as Frame;
     }
 
@@ -702,10 +641,7 @@ public sealed partial class BigScreenPage : Page
 
     private async void SyncBackToHost()
     {
-        if (Plugin.HostApi == null)
-        {
-            return;
-        }
+        if (Plugin.HostApi == null) return;
 
         try
         {
@@ -740,7 +676,8 @@ public sealed partial class BigScreenPage : Page
             var getServiceMethod = appType.GetMethod("GetService");
             if (getServiceMethod == null) return;
 
-            var serviceType = Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.WinApp.Base")
+            var serviceType =
+                Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.WinApp.Base")
                 ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager.Core")
                 ?? Type.GetType("GalgameManager.Contracts.Services.INavigationViewService, GalgameManager")
                 ?? Type.GetType("GalgameManager.Services.NavigationViewService, GalgameManager");
