@@ -8,7 +8,7 @@
 		<Nullable>enable</Nullable>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<EnableCoreFrameworkTracking>false</EnableCoreFrameworkTracking>
-		<!-- 要处理该警告需要用到.Net Preview的特性，等特性稳定（进入正式版）后再处理 -->
+		<!-- 要处理该警告需要用�?Net Preview的特性，等特性稳定（进入正式版）后再处理 -->
 		<NoWarn>MVVMTK0045</NoWarn>
 	</PropertyGroup>
 	<ItemGroup>
@@ -32,7 +32,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\PotatoVN\GalgameManager.WinApp.Base\GalgameManager.WinApp.Base.csproj">
+		<ProjectReference Include="..\..\PotatoVN\GalgameManager.WinApp.Base\GalgameManager.WinApp.Base.csproj">
 			<Private>false</Private>
 		</ProjectReference>
 	</ItemGroup>
@@ -42,11 +42,11 @@
 
 
 	<!--
-    打包插件：
-    - 仅在 Release 配置下执行
+    打包插件�?
+    - 仅在 Release 配置下执�?
     - 从编译输出目录复制文件到临时目录
     - 删除共享程序集黑名单中的 DLL
-    - 使用 PowerShell 压缩为 zip 输出到 artifacts 目录
+    - 使用 PowerShell 压缩�?zip 输出�?artifacts 目录
   -->
 	<Target Name="PackPlugin" AfterTargets="Build" Condition="'$(Configuration)'=='Release'">
 		<PropertyGroup>
@@ -57,7 +57,7 @@
 			<_PluginPackageFullPath>$(PluginPackageOutputDir)\$(PluginPackageFileName)</_PluginPackageFullPath>
 		</PropertyGroup>
 
-		<!-- 清理并创建临时目录 -->
+		<!-- 清理并创建临时目�?-->
 		<RemoveDir Directories="$(_PluginTempDir)" />
 		<MakeDir Directories="$(_PluginTempDir)" />
 
@@ -70,7 +70,7 @@
 		  SourceFiles="@(_PluginSourceFiles)"
 		  DestinationFiles="@(_PluginSourceFiles->'$(_PluginTempDir)%(RecursiveDir)%(Filename)%(Extension)')" />
 
-		<!-- 共享程序集黑名单：在临时目录中删除这些 DLL -->
+		<!-- 共享程序集黑名单：在临时目录中删除这�?DLL -->
 		<ItemGroup>
 			<_PluginBlacklistFiles Include="$(_PluginTempDir)Microsoft.WinUI.dll" />
 			<_PluginBlacklistFiles Include="$(_PluginTempDir)Microsoft.WindowsAppRuntime.Bootstrap.Net.dll" />
@@ -119,7 +119,7 @@
 		<!-- 确保打包输出目录存在 -->
 		<MakeDir Directories="$(PluginPackageOutputDir)" />
 
-		<!-- 使用 PowerShell 压缩为 zip -->
+		<!-- 使用 PowerShell 压缩�?zip -->
 		<Exec
 		  Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Compress-Archive -Path '$(_PluginTempDir)*' -DestinationPath '$(PluginPackageOutputDir)\$(PluginPackageFileName)' -Force&quot;" />
 
