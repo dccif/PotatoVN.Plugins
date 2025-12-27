@@ -279,10 +279,13 @@ public static class SyncService
             if (closeIndex > 1)
             {
                 string token = displayPath.Substring(0, closeIndex + 1); // e.g. %Documents%
-                string folderName = token.Trim('%'); // Documents
-
-                remoteRoot = Path.Combine(directories[0].Path, folderName); // Index 0 is User Data
-
+                
+                string relativeBase = GetRelativePathFromToken(token);
+                
+                remoteRoot = string.IsNullOrEmpty(relativeBase) 
+                    ? directories[0].Path 
+                    : Path.Combine(directories[0].Path, relativeBase);
+                
                 if (displayPath.Length > token.Length)
                 {
                     relativeSuffix = displayPath.Substring(token.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -293,28 +296,41 @@ public static class SyncService
                 }
             }
         }
-
+        
         if (string.IsNullOrWhiteSpace(remoteRoot))
         {
-            Plugin.Instance.Notify(InfoBarSeverity.Warning,
-                Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                "Could not determine remote sync path for this game.");
-            return;
+             Plugin.Instance.Notify(InfoBarSeverity.Warning, 
+                 Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error", 
+                 "Could not determine remote sync path for this game.");
+             return;
         }
 
         try
         {
-            string remoteFullPath = string.IsNullOrWhiteSpace(relativeSuffix)
-                ? remoteRoot
+            string remoteFullPath = string.IsNullOrWhiteSpace(relativeSuffix) 
+                ? remoteRoot 
                 : Path.Combine(remoteRoot, relativeSuffix);
-
+            
             await SyncAsync(localPath, remoteFullPath);
         }
         catch (Exception ex)
         {
-            Plugin.Instance.Notify(InfoBarSeverity.Error,
-                Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                ex.Message);
+             Plugin.Instance.Notify(InfoBarSeverity.Error, 
+                 Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error", 
+                 ex.Message);
         }
+    }
+
+    private static string GetRelativePathFromToken(string token)
+    {
+        return token.ToUpperInvariant() switch
+        {
+            "%APPDATA%" => Path.Combine("AppData", "Roaming"),
+            "%LOCALAPPDATA%" => Path.Combine("AppData", "Local"),
+            "%LOCALLOW%" => Path.Combine("AppData", "LocalLow"),
+            "%DOCUMENTS%" => "Documents",
+            "%USERPROFILE%" => "", 
+            _ => token.Trim('%') 
+        };
     }
 }

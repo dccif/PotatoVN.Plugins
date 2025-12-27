@@ -22,7 +22,7 @@ public class AutoSyncPatch
     }
 
     [HarmonyPrefix]
-    static bool Prefix(object __instance)
+    static bool Prefix(object __instance, ref Task __result)
     {
         // 1. Check if AutoSync is enabled
         if (Plugin.Instance?.Data?.AutoSync != true) return true;
@@ -43,6 +43,11 @@ public class AutoSyncPatch
 
         // 3. Trigger Sync and Prevent original execution
         _ = SyncAndReplay(__instance);
+
+        // IMPORTANT: Since we skip the original method which returns Task,
+        // we MUST provide a non-null Task result to prevent NRE in caller (AsyncRelayCommand).
+        __result = Task.CompletedTask;
+
         return false;
     }
 
@@ -59,22 +64,19 @@ public class AutoSyncPatch
 
             _syncedGames.Add(game.Uuid);
 
-            // Re-invoke Play on UI thread
-            Plugin.Instance?.RunOnUI(async () =>
+            // Re-invoke Play
+            try
             {
-                try
-                {
-                    var type = viewModel.GetType();
-                    var method = AccessTools.Method(type, "Play");
-                    var task = method.Invoke(viewModel, null) as Task;
-                    if (task != null) await task;
-                }
-                catch (Exception e)
-                {
-                    Plugin.Instance.Notify(InfoBarSeverity.Error,
-                        "AutoSync Replay Error", e.Message);
-                }
-            });
+                var type = viewModel.GetType();
+                var method = AccessTools.Method(type, "Play");
+                var task = method.Invoke(viewModel, null) as Task;
+                if (task != null) await task;
+            }
+            catch (Exception e)
+            {
+                Plugin.Instance?.Notify(InfoBarSeverity.Error,
+                    "AutoSync Replay Error", e.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -83,17 +85,15 @@ public class AutoSyncPatch
 
             // Even if error, try to let the user play?
             _syncedGames.Add(game.Uuid);
-            Plugin.Instance?.RunOnUI(async () =>
+
+            try
             {
-                try
-                {
-                    var type = viewModel.GetType();
-                    var method = AccessTools.Method(type, "Play");
-                    var task = method.Invoke(viewModel, null) as Task;
-                    if (task != null) await task;
-                }
-                catch { }
-            });
+                var type = viewModel.GetType();
+                var method = AccessTools.Method(type, "Play");
+                var task = method.Invoke(viewModel, null) as Task;
+                if (task != null) await task;
+            }
+            catch { }
         }
     }
 }
