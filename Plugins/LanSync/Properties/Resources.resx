@@ -121,6 +121,60 @@
     <value>局域网存档同步</value>
   </data>
   <data name="PluginDescription" xml:space="preserve">
-    <value>使得局域网中两个电脑上的存档同步</value>
+    <value>Synchronize game library and status with PotatoVN Server via local network.</value>
+  </data>
+  <data name="Ui_SyncDirectories" xml:space="preserve">
+    <value>Sync Directories</value>
+  </data>
+  <data name="Ui_PathPlaceholder" xml:space="preserve">
+    <value>Enter directory path...</value>
+  </data>
+  <data name="Ui_Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Ui_Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Ui_UserData" xml:space="preserve">
+    <value>User Data</value>
+  </data>
+  <data name="Ui_GameRoot" xml:space="preserve">
+    <value>Game Root</value>
+  </data>
+  <data name="Ui_NewFolder" xml:space="preserve">
+    <value>New Folder</value>
+  </data>
+  <data name="Ui_Label" xml:space="preserve">
+    <value>Label</value>
+  </data>
+  <data name="Ui_Path" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="Ui_LanSync" xml:space="preserve">
+    <value>LanSync</value>
+  </data>
+  <data name="Ui_AutoSync" xml:space="preserve">
+    <value>Auto Sync</value>
+  </data>
+  <data name="Ui_AutoSyncDescription" xml:space="preserve">
+    <value>Automatically sync saves via LAN before game launch.</value>
+  </data>
+  <data name="Ui_SyncToRemoteSuccess" xml:space="preserve">
+    <value>Local save is newer. Synced to remote successfully.</value>
+  </data>
+  <data name="Ui_SyncFromRemoteSuccess" xml:space="preserve">
+    <value>Remote save is newer. Synced from remote successfully.</value>
+  </data>
+  <data name="Ui_SyncError" xml:space="preserve">
+    <value>Sync error: {0}</value>
+  </data>
+  <data name="Ui_SyncUpToDate" xml:space="preserve">
+    <value>Save is up to date.</value>
+  </data>
+  <data name="Ui_Error_SettingNotSet" xml:space="preserve">
+    <value>Sync path for {0} is not set.</value>
+  </data>
+  <data name="Ui_Error_PathNotFound" xml:space="preserve">
+    <value>Path for {0} not found: {1}</value>
   </data>
 </root>

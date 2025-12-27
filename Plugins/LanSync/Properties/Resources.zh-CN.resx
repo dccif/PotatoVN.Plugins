@@ -123,4 +123,58 @@
   <data name="PluginDescription" xml:space="preserve">
     <value>使得局域网中两个电脑上的存档同步</value>
   </data>
+  <data name="Ui_SyncDirectories" xml:space="preserve">
+    <value>同步目录</value>
+  </data>
+  <data name="Ui_PathPlaceholder" xml:space="preserve">
+    <value>输入目录路径...</value>
+  </data>
+  <data name="Ui_Add" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="Ui_Remove" xml:space="preserve">
+    <value>移除</value>
+  </data>
+  <data name="Ui_UserData" xml:space="preserve">
+    <value>用户数据</value>
+  </data>
+  <data name="Ui_GameRoot" xml:space="preserve">
+    <value>游戏根目录</value>
+  </data>
+  <data name="Ui_NewFolder" xml:space="preserve">
+    <value>新建文件夹</value>
+  </data>
+  <data name="Ui_Label" xml:space="preserve">
+    <value>标签</value>
+  </data>
+  <data name="Ui_Path" xml:space="preserve">
+    <value>路径</value>
+  </data>
+  <data name="Ui_LanSync" xml:space="preserve">
+    <value>局域网同步</value>
+  </data>
+  <data name="Ui_AutoSync" xml:space="preserve">
+    <value>自动同步</value>
+  </data>
+  <data name="Ui_AutoSyncDescription" xml:space="preserve">
+    <value>游戏启动前自动进行局域网存档同步。</value>
+  </data>
+  <data name="Ui_SyncToRemoteSuccess" xml:space="preserve">
+    <value>根据时间戳，检测到本地存档较新，已同步到远程。</value>
+  </data>
+  <data name="Ui_SyncFromRemoteSuccess" xml:space="preserve">
+    <value>根据时间戳，检测到远程存档较新，已同步到本地。</value>
+  </data>
+  <data name="Ui_SyncError" xml:space="preserve">
+    <value>同步出错：{0}</value>
+  </data>
+  <data name="Ui_SyncUpToDate" xml:space="preserve">
+    <value>存档已是最新，无需同步。</value>
+  </data>
+  <data name="Ui_Error_SettingNotSet" xml:space="preserve">
+    <value>未设置 {0} 的同步路径。</value>
+  </data>
+  <data name="Ui_Error_PathNotFound" xml:space="preserve">
+    <value>找不到 {0} 的路径：{1}</value>
+  </data>
 </root>

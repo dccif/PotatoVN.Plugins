@@ -123,4 +123,58 @@
   <data name="PluginDescription" xml:space="preserve">
     <value>LAN経由でPotatoVNサーバーとゲームライブラリやステータスを同期します。</value>
   </data>
+  <data name="Ui_SyncDirectories" xml:space="preserve">
+    <value>同期ディレクトリ</value>
+  </data>
+  <data name="Ui_PathPlaceholder" xml:space="preserve">
+    <value>ディレクトリパスを入力...</value>
+  </data>
+  <data name="Ui_Add" xml:space="preserve">
+    <value>追加</value>
+  </data>
+  <data name="Ui_Remove" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="Ui_UserData" xml:space="preserve">
+    <value>ユーザーデータ</value>
+  </data>
+  <data name="Ui_GameRoot" xml:space="preserve">
+    <value>ゲームルート</value>
+  </data>
+  <data name="Ui_NewFolder" xml:space="preserve">
+    <value>新規フォルダー</value>
+  </data>
+  <data name="Ui_Label" xml:space="preserve">
+    <value>ラベル</value>
+  </data>
+  <data name="Ui_Path" xml:space="preserve">
+    <value>パス</value>
+  </data>
+  <data name="Ui_LanSync" xml:space="preserve">
+    <value>LAN同期</value>
+  </data>
+  <data name="Ui_AutoSync" xml:space="preserve">
+    <value>自動同期</value>
+  </data>
+  <data name="Ui_AutoSyncDescription" xml:space="preserve">
+    <value>ゲーム起動前にLAN経由でセーブデータを自動同期します。</value>
+  </data>
+  <data name="Ui_SyncToRemoteSuccess" xml:space="preserve">
+    <value>ローカルセーブデータが新しいため、リモートに同期しました。</value>
+  </data>
+  <data name="Ui_SyncFromRemoteSuccess" xml:space="preserve">
+    <value>リモートセーブデータが新しいため、ローカルに同期しました。</value>
+  </data>
+  <data name="Ui_SyncError" xml:space="preserve">
+    <value>同期エラー：{0}</value>
+  </data>
+  <data name="Ui_SyncUpToDate" xml:space="preserve">
+    <value>セーブデータは最新です。</value>
+  </data>
+  <data name="Ui_Error_SettingNotSet" xml:space="preserve">
+    <value>{0} の同期パスが設定されていません。</value>
+  </data>
+  <data name="Ui_Error_PathNotFound" xml:space="preserve">
+    <value>{0} のパスが見つかりません：{1}</value>
+  </data>
 </root>

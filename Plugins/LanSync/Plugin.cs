@@ -1,7 +1,10 @@
 using GalgameManager.Enums;
+using GalgameManager.Models;
 using GalgameManager.WinApp.Base.Contracts;
+using GalgameManager.WinApp.Base.Contracts.PluginUi;
 using GalgameManager.WinApp.Base.Models;
 using HarmonyLib;
+using Microsoft.UI.Xaml.Controls;
 using PotatoVN.App.PluginBase.Helper;
 using PotatoVN.App.PluginBase.Models;
 using System;
@@ -12,13 +15,17 @@ using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase;
 
-public partial class Plugin : IPlugin
+public partial class Plugin : IPlugin, IPluginSetting
 {
     private static IPotatoVnApi _hostApi = null!;
     private PluginData _data = new();
+    public PluginData Data => _data; // Expose Data
     private Harmony? _harmony;
     private static ResourceManager? _resourceManager;
     private static CultureInfo? _pluginCulture;
+
+    public static Plugin? Instance { get; private set; }
+    public Galgame? CurrentGalgame { get; set; }
 
     private static ResourceManager ResourceManager
     {
@@ -34,6 +41,16 @@ public partial class Plugin : IPlugin
     internal static string? GetLocalized(string key)
     {
         return ResourceManager.GetString(key, _pluginCulture);
+    }
+
+    public void Notify(InfoBarSeverity severity, string title, string? msg = null)
+    {
+        _hostApi?.Info(severity, title, msg);
+    }
+
+    public void RunOnUI(Action action)
+    {
+        _hostApi?.InvokeOnMainThread(action);
     }
 
     public PluginInfo Info { get; } = new()
@@ -61,6 +78,10 @@ public partial class Plugin : IPlugin
 
         _data.PropertyChanged += (_, _) => SaveData();
 
+        Instance = this;
+        _harmony = new Harmony("com.potatovn.plugin.lansync");
+        _harmony.PatchAll(typeof(Plugin).Assembly);
+
         // 1. Language Setup
         try
         {
@@ -85,6 +106,15 @@ public partial class Plugin : IPlugin
                 Info.Description = GetLocalized("PluginDescription") ??
                                    "使得局域网中两个电脑上的存档同步";
             }
+
+            // Default mandatory directories (Initialize after language setup)
+            if (_data.SyncDirectories.Count == 0)
+            {
+                _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_UserData") ?? "User Data",
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
+                _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_GameRoot") ?? "Game Root",
+                    ""));
+            }
         }
         catch (Exception ex)
         {
@@ -107,7 +137,7 @@ public partial class Plugin : IPlugin
     {
         try
         {
-            _harmony?.UnpatchAll("com.potatovn.plugin.protocol");
+            _harmony?.UnpatchAll("com.potatovn.plugin.lansync");
         }
         catch
         {
