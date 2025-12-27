@@ -1,7 +1,6 @@
-
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GalgameManager.WinApp.Base", "PotatoVN\GalgameManager.WinApp.Base\GalgameManager.WinApp.Base.csproj", "{973AE514-2A71-1050-901C-24D5384AFADC}"
 EndProject
@@ -10,6 +9,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CreateShort", "Plugins\CreateShort\CreateShort.csproj", "{9A3AE3D6-D6F3-4971-8F1E-DCDFA795D791}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameSaveDetector", "Plugins\GameSaveDetector\GameSaveDetector.csproj", "{3CB6EAA1-8CB4-4888-9142-F56D42CAB811}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LanSync", "Plugins\LanSync\LanSync.csproj", "{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,8 +70,23 @@ Global
 		{3CB6EAA1-8CB4-4888-9142-F56D42CAB811}.Release|x64.Build.0 = Release|Any CPU
 		{3CB6EAA1-8CB4-4888-9142-F56D42CAB811}.Release|x86.ActiveCfg = Release|Any CPU
 		{3CB6EAA1-8CB4-4888-9142-F56D42CAB811}.Release|x86.Build.0 = Release|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Debug|x64.Build.0 = Debug|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Debug|x86.Build.0 = Debug|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Release|x64.ActiveCfg = Release|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Release|x64.Build.0 = Release|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Release|x86.ActiveCfg = Release|Any CPU
+		{6C8EA9E4-AB63-47A3-2B7A-2DDAA242EB39}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {87352CDF-5E95-46E7-9618-949E4FDD9EA5}
 	EndGlobalSection
 EndGlobal
