@@ -1,11 +1,14 @@
+using CommunityToolkit.Mvvm.Messaging;
 using GalgameManager.Enums;
 using GalgameManager.Models;
 using GalgameManager.WinApp.Base.Contracts;
 using GalgameManager.WinApp.Base.Contracts.PluginUi;
 using GalgameManager.WinApp.Base.Models;
+using GalgameManager.WinApp.Base.Models.Msgs;
 using HarmonyLib;
 using Microsoft.UI.Xaml.Controls;
 using PotatoVN.App.PluginBase.Models;
+using PotatoVN.App.PluginBase.Services;
 using System;
 using System.Diagnostics;
 using System.Globalization;
@@ -79,6 +82,19 @@ public partial class Plugin : IPlugin, IPluginSetting
         Instance = this;
         _harmony = new Harmony("com.potatovn.plugin.lansync");
         _harmony.PatchAll(typeof(Plugin).Assembly);
+
+        // Auto Sync Registration
+        _hostApi.Messenger.Register<GalgameStoppedMessage>(this, (r, m) =>
+        {
+            if (m.Value == null) return;
+            if (_data.AutoSync)
+            {
+                Debug.WriteLine($"[LanSync] Auto-Sync on Stop: {m.Value.Name.Value}");
+                _ = SyncService.SyncGameAsync(m.Value);
+            }
+
+            if (CurrentGalgame == m.Value) CurrentGalgame = null;
+        });
 
         // 1. Language Setup
         try

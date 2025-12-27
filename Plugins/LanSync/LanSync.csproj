@@ -24,12 +24,6 @@
         <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250907003">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <EmbeddedResource Update="Properties\Resources.resx">
-            <Generator>ResXFileCodeGenerator</Generator>
-            <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-        </EmbeddedResource>
-        <EmbeddedResource Update="Properties\Resources.ja-JP.resx"/>
-        <EmbeddedResource Update="Properties\Resources.zh-CN.resx"/>
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\..\PotatoVN\GalgameManager.WinApp.Base\GalgameManager.WinApp.Base.csproj">
