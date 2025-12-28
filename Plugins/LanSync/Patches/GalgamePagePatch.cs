@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using System;
 using System.Linq;
 using System.Reflection;
 
@@ -12,6 +13,29 @@ namespace PotatoVN.App.PluginBase.Patches;
 [HarmonyPatch]
 public class GalgamePagePatch
 {
+    // Track buttons to remove them on Plugin Dispose
+    private static readonly
+        System.Collections.Generic.List<(WeakReference<CommandBar> Bar, WeakReference<AppBarButton> Btn)> _buttons =
+            new();
+
+    public static void ClearButtons()
+    {
+        lock (_buttons)
+        {
+            foreach (var (barMsg, btnMsg) in _buttons)
+                if (barMsg.TryGetTarget(out var bar) && btnMsg.TryGetTarget(out var btn))
+                    try
+                    {
+                        if (bar.PrimaryCommands.Contains(btn)) bar.PrimaryCommands.Remove(btn);
+                    }
+                    catch
+                    {
+                    }
+
+            _buttons.Clear();
+        }
+    }
+
     [HarmonyTargetMethod]
     private static MethodInfo TargetMethod()
     {
@@ -92,27 +116,40 @@ public class GalgamePagePatch
 
     private static void AddButton(CommandBar commandBar, Galgame game)
     {
-        // Avoid duplicate
-        if (commandBar.PrimaryCommands.Any(c => c is AppBarButton btn && (string)btn.Tag == "LanSyncButton")) return;
-
-        var btn = new AppBarButton
+        try
         {
-            Label = Plugin.GetLocalized("Ui_LanSync") ?? "LanSync",
-            Icon = new FontIcon { Glyph = "\uE895" },
-            Tag = "LanSyncButton"
-        };
+            // Avoid duplicate
+            if (commandBar.PrimaryCommands.Any(c => c is AppBarButton btn && (string)btn.Tag == "LanSyncButton"))
+                return;
 
-        btn.Click += async (s, args) =>
+            var btn = new AppBarButton
+            {
+                Label = Plugin.GetLocalized("Ui_LanSync") ?? "LanSync",
+                Icon = new FontIcon { Glyph = "\uE895" },
+                Tag = "LanSyncButton"
+            };
+
+            btn.Click += async (s, args) =>
+            {
+                // Use the captured game instance
+                await Services.SyncService.SyncGameAsync(game);
+            };
+
+            // Insert after "Play" button (Start Game)
+            if (commandBar.PrimaryCommands.Count > 0)
+                commandBar.PrimaryCommands.Insert(1, btn);
+            else
+                commandBar.PrimaryCommands.Add(btn);
+
+            lock (_buttons)
+            {
+                _buttons.Add((new WeakReference<CommandBar>(commandBar), new WeakReference<AppBarButton>(btn)));
+            }
+        }
+        catch
         {
-            // Use the captured game instance
-            await Services.SyncService.SyncGameAsync(game);
-        };
-
-        // Insert after "Play" button (Start Game)
-        if (commandBar.PrimaryCommands.Count > 0)
-            commandBar.PrimaryCommands.Insert(1, btn);
-        else
-            commandBar.PrimaryCommands.Add(btn);
+            // Ignore errors during button addition
+        }
     }
 
     private static CommandBar? FindCommandBar(DependencyObject parent)

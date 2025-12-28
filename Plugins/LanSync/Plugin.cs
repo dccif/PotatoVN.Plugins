@@ -157,5 +157,18 @@ public partial class Plugin : IPlugin, IPluginSetting
         {
             // 忽略卸载时的异常
         }
+
+        RunOnUI(() =>
+        {
+            try
+            {
+                Patches.GalgamePagePatch.ClearButtons();
+            }
+            catch
+            {
+            }
+        });
+
+        Instance = null;
     }
 }

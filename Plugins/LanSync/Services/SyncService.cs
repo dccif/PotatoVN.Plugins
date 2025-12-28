@@ -235,8 +235,8 @@ public static class SyncService
             if (string.IsNullOrWhiteSpace(gamePath))
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
-                   Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                   "Could not determine local game path.");
+                    Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                    "Could not determine local game path.");
                 return;
             }
 
