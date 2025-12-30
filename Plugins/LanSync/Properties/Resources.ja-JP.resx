@@ -182,4 +182,10 @@
     <data name="Ui_Error_PathNotFound" xml:space="preserve">
     <value>{0} のパスが見つかりません：{1}</value>
   </data>
+  <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
+    <value>ローカル -&gt; {0}</value>
+  </data>
+  <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
+    <value>{0} -&gt; ローカル</value>
+  </data>
 </root>

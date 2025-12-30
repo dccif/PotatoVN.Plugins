@@ -182,4 +182,10 @@
     <data name="Ui_Error_PathNotFound" xml:space="preserve">
     <value>Path for {0} not found: {1}</value>
   </data>
+  <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
+    <value>Local -&gt; {0}</value>
+  </data>
+  <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
+    <value>{0} -&gt; Local</value>
+  </data>
 </root>

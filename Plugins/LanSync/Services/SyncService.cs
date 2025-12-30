@@ -22,7 +22,7 @@ public static class SyncService
     /// </summary>
     /// <param name="localPath">Absolute path for local folder</param>
     /// <param name="remotePath">Absolute path for remote folder</param>
-    public static async Task SyncAsync(string localPath, string remotePath)
+    public static async Task SyncAsync(string localPath, string remotePath, string? remoteName = null)
     {
         try
         {
@@ -55,8 +55,11 @@ public static class SyncService
                 if (!remoteExists) return; // Should not happen
                 await SyncDifferentialAsync(remoteDir, localDir);
 
-                Plugin.Instance?.Notify(InfoBarSeverity.Success,
-                    Plugin.GetLocalized("Ui_SyncFromRemoteSuccess") ?? "Synced from remote.");
+                var msg = !string.IsNullOrEmpty(remoteName)
+                    ? string.Format(Plugin.GetLocalized("Ui_SyncFromRemoteFormat") ?? "{0} -> Local", remoteName)
+                    : Plugin.GetLocalized("Ui_SyncFromRemoteSuccess") ?? "Synced from remote.";
+
+                Plugin.Instance?.Notify(InfoBarSeverity.Success, msg);
             }
             else
             {
@@ -64,8 +67,11 @@ public static class SyncService
                 if (!localExists) return;
                 await SyncDifferentialAsync(localDir, remoteDir);
 
-                Plugin.Instance?.Notify(InfoBarSeverity.Success,
-                    Plugin.GetLocalized("Ui_SyncToRemoteSuccess") ?? "Synced to remote.");
+                var msg = !string.IsNullOrEmpty(remoteName)
+                    ? string.Format(Plugin.GetLocalized("Ui_SyncToRemoteFormat") ?? "Local -> {0}", remoteName)
+                    : Plugin.GetLocalized("Ui_SyncToRemoteSuccess") ?? "Synced to remote.";
+
+                Plugin.Instance?.Notify(InfoBarSeverity.Success, msg);
             }
         }
         catch (Exception ex)
@@ -195,7 +201,7 @@ public static class SyncService
         var directories = Plugin.Instance.Data.SyncDirectories;
         if (directories.Count < 2) return; // Should not happen given initialization
 
-        var targetRemotePaths = new List<string>();
+        var targetRemotePaths = new List<(string Path, string Name)>();
         string? requiredSettingName = null;
 
         // Logic to determine Remote Path
@@ -217,8 +223,7 @@ public static class SyncService
             // Collect all potential library roots (Index 1 and above)
             // We verify existence inside the loop or filter valid ones
             var libraryRoots = directories.Skip(1)
-                                          .Select(d => d.Path)
-                                          .Where(p => !string.IsNullOrWhiteSpace(p))
+                                          .Where(d => !string.IsNullOrWhiteSpace(d.Path))
                                           .ToList();
 
             if (libraryRoots.Count == 0)
@@ -257,16 +262,16 @@ public static class SyncService
             {
                 try
                 {
-                    if (!Directory.Exists(root)) continue;
+                    if (!Directory.Exists(root.Path)) continue;
 
                     // Check if Base Path Exists and contains the game folder
-                    var remoteGameRoot = Path.Combine(root, gameFolderName);
+                    var remoteGameRoot = Path.Combine(root.Path, gameFolderName);
                     if (Directory.Exists(remoteGameRoot))
                     {
                         var fullUrl = string.IsNullOrWhiteSpace(relativeSuffix)
                             ? remoteGameRoot
                             : Path.Combine(remoteGameRoot, relativeSuffix);
-                        targetRemotePaths.Add(fullUrl);
+                        targetRemotePaths.Add((fullUrl, root.Name));
                     }
                 }
                 catch { }
@@ -276,7 +281,8 @@ public static class SyncService
         {
             // Case 2: User Data (Documents, AppData, etc.)
             requiredSettingName = Plugin.GetLocalized("Ui_UserData") ?? "User Data";
-            var requiredPath = directories[0].Path;
+            var userDataDir = directories[0];
+            var requiredPath = userDataDir.Path;
 
             if (string.IsNullOrWhiteSpace(requiredPath))
             {
@@ -306,8 +312,8 @@ public static class SyncService
                 var relativeBase = GetRelativePathFromToken(token);
 
                 var remoteRoot = string.IsNullOrEmpty(relativeBase)
-                    ? directories[0].Path
-                    : Path.Combine(directories[0].Path, relativeBase);
+                    ? userDataDir.Path
+                    : Path.Combine(userDataDir.Path, relativeBase);
 
                 string relativeSuffix;
                 if (displayPath.Length > token.Length)
@@ -316,7 +322,8 @@ public static class SyncService
                 else
                     relativeSuffix = string.Empty;
 
-                targetRemotePaths.Add(string.IsNullOrWhiteSpace(relativeSuffix) ? remoteRoot : Path.Combine(remoteRoot, relativeSuffix));
+                var fullPath = string.IsNullOrWhiteSpace(relativeSuffix) ? remoteRoot : Path.Combine(remoteRoot, relativeSuffix);
+                targetRemotePaths.Add((fullPath, userDataDir.Name));
             }
         }
 
@@ -328,11 +335,11 @@ public static class SyncService
             return;
         }
 
-        foreach (var remoteFullPath in targetRemotePaths)
+        foreach (var (remoteFullPath, remoteName) in targetRemotePaths)
         {
             try
             {
-                await SyncAsync(localPath, remoteFullPath);
+                await SyncAsync(localPath, remoteFullPath, remoteName);
             }
             catch (Exception ex)
             {

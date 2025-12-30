@@ -182,4 +182,10 @@
     <data name="Ui_Error_PathNotFound" xml:space="preserve">
     <value>找不到 {0} 的路径：{1}</value>
   </data>
+  <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
+    <value>本地 -&gt; {0}</value>
+  </data>
+  <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
+    <value>{0} -&gt; 本地</value>
+  </data>
 </root>
