@@ -195,35 +195,38 @@ public static class SyncService
         var directories = Plugin.Instance.Data.SyncDirectories;
         if (directories.Count < 2) return; // Should not happen given initialization
 
-        string? remoteRoot = null;
-        string? relativeSuffix = null;
-
+        var targetRemotePaths = new List<string>();
         string? requiredSettingName = null;
-        string? requiredPath = null;
 
         // Logic to determine Remote Path
         if (displayPath.StartsWith("%GameRoot%", StringComparison.OrdinalIgnoreCase))
         {
             // Case 1: Game Root
             requiredSettingName = Plugin.GetLocalized("Ui_GameRoot") ?? "Game Root";
-            var libraryRoot = directories[1].Path;
 
-            if (string.IsNullOrWhiteSpace(libraryRoot))
+            // Check if any Library Root is configured
+            if (directories.Count < 2)
+            {
+                Plugin.Instance.Notify(InfoBarSeverity.Warning,
+                   Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                   string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.",
+                       requiredSettingName));
+                return;
+            }
+
+            // Collect all potential library roots (Index 1 and above)
+            // We verify existence inside the loop or filter valid ones
+            var libraryRoots = directories.Skip(1)
+                                          .Select(d => d.Path)
+                                          .Where(p => !string.IsNullOrWhiteSpace(p))
+                                          .ToList();
+
+            if (libraryRoots.Count == 0)
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
                     string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.",
                         requiredSettingName));
-                return;
-            }
-
-            // Check if Base Path Exists
-            if (!Directory.Exists(libraryRoot))
-            {
-                Plugin.Instance.Notify(InfoBarSeverity.Warning,
-                    Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                    string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}",
-                        requiredSettingName, libraryRoot));
                 return;
             }
 
@@ -241,20 +244,39 @@ public static class SyncService
             }
 
             var gameFolderName = new DirectoryInfo(gamePath).Name;
-            remoteRoot = Path.Combine(libraryRoot, gameFolderName);
 
             // Remove "%GameRoot%" length. 
+            string relativeSuffix;
             if (displayPath.Length > "%GameRoot%".Length)
                 relativeSuffix = displayPath.Substring("%GameRoot%".Length)
                     .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             else
                 relativeSuffix = string.Empty;
+
+            foreach (var root in libraryRoots)
+            {
+                try
+                {
+                    if (!Directory.Exists(root)) continue;
+
+                    // Check if Base Path Exists and contains the game folder
+                    var remoteGameRoot = Path.Combine(root, gameFolderName);
+                    if (Directory.Exists(remoteGameRoot))
+                    {
+                        var fullUrl = string.IsNullOrWhiteSpace(relativeSuffix)
+                            ? remoteGameRoot
+                            : Path.Combine(remoteGameRoot, relativeSuffix);
+                        targetRemotePaths.Add(fullUrl);
+                    }
+                }
+                catch { }
+            }
         }
         else if (displayPath.StartsWith("%"))
         {
             // Case 2: User Data (Documents, AppData, etc.)
             requiredSettingName = Plugin.GetLocalized("Ui_UserData") ?? "User Data";
-            requiredPath = directories[0].Path;
+            var requiredPath = directories[0].Path;
 
             if (string.IsNullOrWhiteSpace(requiredPath))
             {
@@ -283,39 +305,41 @@ public static class SyncService
 
                 var relativeBase = GetRelativePathFromToken(token);
 
-                remoteRoot = string.IsNullOrEmpty(relativeBase)
+                var remoteRoot = string.IsNullOrEmpty(relativeBase)
                     ? directories[0].Path
                     : Path.Combine(directories[0].Path, relativeBase);
 
+                string relativeSuffix;
                 if (displayPath.Length > token.Length)
                     relativeSuffix = displayPath.Substring(token.Length)
                         .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 else
                     relativeSuffix = string.Empty;
+
+                targetRemotePaths.Add(string.IsNullOrWhiteSpace(relativeSuffix) ? remoteRoot : Path.Combine(remoteRoot, relativeSuffix));
             }
         }
 
-        if (string.IsNullOrWhiteSpace(remoteRoot))
+        if (targetRemotePaths.Count == 0)
         {
             Plugin.Instance.Notify(InfoBarSeverity.Warning,
                 Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                "Could not determine remote sync path for this game.");
+                "Could not determine any valid remote sync path for this game.");
             return;
         }
 
-        try
+        foreach (var remoteFullPath in targetRemotePaths)
         {
-            var remoteFullPath = string.IsNullOrWhiteSpace(relativeSuffix)
-                ? remoteRoot
-                : Path.Combine(remoteRoot, relativeSuffix);
-
-            await SyncAsync(localPath, remoteFullPath);
-        }
-        catch (Exception ex)
-        {
-            Plugin.Instance.Notify(InfoBarSeverity.Error,
-                Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                ex.Message);
+            try
+            {
+                await SyncAsync(localPath, remoteFullPath);
+            }
+            catch (Exception ex)
+            {
+                Plugin.Instance.Notify(InfoBarSeverity.Error,
+                    Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                    ex.Message);
+            }
         }
     }
 
