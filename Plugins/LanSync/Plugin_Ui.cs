@@ -46,9 +46,19 @@ public partial class Plugin
         // List Container
         StackPanel listContainer = new() { Spacing = 8 };
 
+        ScrollViewer scrollContainer = new()
+        {
+            Content = listContainer,
+            MaxHeight = 280, // Limit to approx 6 rows (40px item + spacing)
+            HorizontalScrollMode = ScrollMode.Disabled,
+            VerticalScrollMode = ScrollMode.Enabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            IsVerticalRailEnabled = true
+        };
+
         // Refresh List initially
         RefreshList(listContainer);
-        root.Children.Add(listContainer);
+        root.Children.Add(scrollContainer);
 
         // Add Button
         Button addBtn = new()
@@ -60,7 +70,11 @@ public partial class Plugin
 
         addBtn.Click += (s, e) =>
         {
-            _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_GameRoot") ?? "Game Root", "", SyncDirectoryType.Library));
+            var defaultType = SyncDirectoryType.Library;
+            var baseName = GetDefaultNameForType(defaultType);
+            var finalName = GenerateUniqueName(baseName);
+
+            _data.SyncDirectories.Add(new SyncDirectory(finalName, "", defaultType) { IsCustomName = false });
             SaveData();
             RefreshList(listContainer);
         };
@@ -93,6 +107,24 @@ public partial class Plugin
             row.ColumnSpacing = 8;
             row.Margin = new Thickness(0, 4, 0, 4);
 
+            // 1. Label (Defined before TypeBox to allow reference)
+            TextBox labelBox = new()
+            {
+                Text = dir.Name,
+                PlaceholderText = GetLocalized("Ui_Label") ?? "Label",
+                IsEnabled = !isFixed // Only editable if not fixed
+            };
+            // Save on loose focus
+            labelBox.LostFocus += (s, e) =>
+            {
+                if (dir.Name != labelBox.Text)
+                {
+                    dir.Name = labelBox.Text;
+                    dir.IsCustomName = true;
+                    SaveData();
+                }
+            };
+
             // 0. Type Selector
             ComboBox typeBox = new()
             {
@@ -106,23 +138,24 @@ public partial class Plugin
             {
                 if (typeBox.SelectedItem is TypeOption option)
                 {
-                    dir.Type = option.Type;
-                    SaveData();
-                }
-            };
+                    var newType = option.Type;
+                    var oldType = dir.Type;
 
-            // 1. Label
-            TextBox labelBox = new()
-            {
-                Text = dir.Name,
-                PlaceholderText = GetLocalized("Ui_Label") ?? "Label",
-                IsEnabled = !isFixed // Only editable if not fixed
-            };
-            // Save on loose focus
-            labelBox.LostFocus += (s, e) =>
-            {
-                dir.Name = labelBox.Text;
-                SaveData();
+                    if (oldType != newType)
+                    {
+                        // Auto-rename if not custom
+                        if (!dir.IsCustomName)
+                        {
+                            var newBaseName = GetDefaultNameForType(newType);
+                            dir.Name = GenerateUniqueName(newBaseName);
+                            dir.IsCustomName = false; // Still a system generated name
+                            labelBox.Text = dir.Name;
+                        }
+
+                        dir.Type = newType;
+                        SaveData();
+                    }
+                }
             };
 
             // 2. Path (Read-only, set by picker)
@@ -201,5 +234,24 @@ public partial class Plugin
     {
         public SyncDirectoryType Type { get; set; } = type;
         public string Label { get; set; } = label;
+    }
+
+    private string GenerateUniqueName(string baseName)
+    {
+        if (!_data.SyncDirectories.Any(d => d.Name.Equals(baseName, StringComparison.OrdinalIgnoreCase)))
+            return baseName;
+
+        int i = 1;
+        while (_data.SyncDirectories.Any(d => d.Name.Equals($"{baseName} {i}", StringComparison.OrdinalIgnoreCase)))
+            i++;
+
+        return $"{baseName} {i}";
+    }
+
+    private static string GetDefaultNameForType(SyncDirectoryType type)
+    {
+        return type == SyncDirectoryType.User
+            ? (GetLocalized("Ui_UserData") ?? "User Data")
+            : (GetLocalized("Ui_GameRoot") ?? "Game Root");
     }
 }

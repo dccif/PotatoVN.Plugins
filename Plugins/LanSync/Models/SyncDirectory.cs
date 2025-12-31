@@ -13,6 +13,7 @@ public partial class SyncDirectory : ObservableObject
     [ObservableProperty] private string _name = string.Empty;
     [ObservableProperty] private string _path = string.Empty;
     [ObservableProperty] private SyncDirectoryType _type = SyncDirectoryType.Library;
+    [ObservableProperty] private bool _isCustomName = false;
 
     public SyncDirectory()
     {
