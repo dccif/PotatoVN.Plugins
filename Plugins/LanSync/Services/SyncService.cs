@@ -31,12 +31,10 @@ public static class SyncService
     /// 3. Mirror Source to Target:
     ///    - Delete files in Target not present in Source.
     ///    - Copy files from Source to Target only if they changed (Size or LastWriteTime differs).
+    /// Performs synchronization against a specific remote using a pre-computed local state.
     /// </summary>
-    /// <param name="localPath">Absolute path for local folder</param>
-    /// <param name="remotePath">Absolute path for remote folder</param>
-    /// <param name="remoteName">Optional name of remote for logging</param>
-    public static async Task<SyncOperationResult> SyncAsync(string localPath, string remotePath,
-        string? remoteName = null)
+    private static async Task<SyncOperationResult> SyncAsync(DirectoryInfo localDir, DirectoryState localState,
+        string remotePath, string? remoteName)
     {
         var result = new SyncOperationResult
         {
@@ -46,34 +44,24 @@ public static class SyncService
 
         try
         {
-            if (string.IsNullOrWhiteSpace(localPath) || string.IsNullOrWhiteSpace(remotePath))
+            if (string.IsNullOrWhiteSpace(remotePath))
             {
                 result.Success = false;
-                result.ErrorMessage = "Invalid paths";
+                result.ErrorMessage = "Invalid remote path";
                 return result;
             }
 
-            var localDir = new DirectoryInfo(localPath);
             var remoteDir = new DirectoryInfo(remotePath);
-
-            // 1. Scan both directories in parallel to get state (MaxTime + FileList)
-            var localTask = GetDirectoryStateAsync(localDir);
-            var remoteTask = GetDirectoryStateAsync(remoteDir);
-
-            await Task.WhenAll(localTask, remoteTask);
-
-            var localState = localTask.Result;
-            var remoteState = remoteTask.Result;
+            var remoteState = await GetDirectoryStateAsync(remoteDir);
 
             if (!localState.Exists && !remoteState.Exists)
             {
                 result.Skipped = true;
                 result.Success = true;
-                // Default direction
                 return result;
             }
 
-            // 2. Tolerance check for "Up to date"
+            // Tolerance check for "Up to date"
             if (Math.Abs((localState.MaxWriteTime - remoteState.MaxWriteTime).Ticks) < TicksThreshold)
             {
                 result.Skipped = true;
@@ -81,10 +69,10 @@ public static class SyncService
                 return result;
             }
 
-            // 3. Determine Direction
+            // Determine Direction
             if (remoteState.MaxWriteTime > localState.MaxWriteTime)
             {
-                // Source: Remote -> Target: Local
+                // Sync Remote -> Local
                 if (!remoteState.Exists)
                 {
                     result.Skipped = true;
@@ -98,7 +86,7 @@ public static class SyncService
             }
             else
             {
-                // Source: Local -> Target: Remote
+                // Sync Local -> Remote
                 if (!localState.Exists)
                 {
                     result.Skipped = true;
@@ -124,7 +112,7 @@ public static class SyncService
     {
         public bool Exists { get; set; }
         public DateTime MaxWriteTime { get; set; }
-        public FileInfo[] Files { get; set; } = Array.Empty<FileInfo>();
+        public FileInfo[] Files { get; set; } = [];
     }
 
     private static Task<DirectoryState> GetDirectoryStateAsync(DirectoryInfo dir)
@@ -135,7 +123,17 @@ public static class SyncService
             {
                 if (!dir.Exists) return new DirectoryState { Exists = false, MaxWriteTime = DateTime.MinValue };
 
-                var files = dir.GetFiles("*", SearchOption.AllDirectories);
+                var options = new EnumerationOptions
+                {
+                    IgnoreInaccessible = true,
+                    RecurseSubdirectories = true,
+                    AttributesToSkip =
+                        FileAttributes.ReparsePoint | FileAttributes.System // Skip symlinks/system files for safety
+                };
+
+                // Use EnumerateFiles heavily optimized by OS for bulk retrieval, but safe via options
+                // Note: ToList() helps freeze the state, but we need array for index access later
+                var files = dir.GetFiles("*", options);
                 var maxTime = files.Length > 0 ? files.Max(f => f.LastWriteTime) : DateTime.MinValue;
 
                 return new DirectoryState
@@ -170,51 +168,90 @@ public static class SyncService
                 sourceMap[relPath] = f;
             }
 
-            // 2. Delete Extraneous Files in Target (Parallel)
-            var targetList = targetFiles.Select(f => new
-            { File = f, RelPath = Path.GetRelativePath(targetDir.FullName, f.FullName) }).ToList();
-
-            Parallel.ForEach(targetList, item =>
+            // 2. Index Target Files (Relative Path -> FileInfo)
+            var targetMap = new Dictionary<string, FileInfo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in targetFiles)
             {
-                if (!sourceMap.ContainsKey(item.RelPath))
+                var relPath = Path.GetRelativePath(targetDir.FullName, f.FullName);
+                targetMap[relPath] = f;
+            }
+
+            // 3. Pre-create required directories in target (Parallel)
+            // Optimization: Only create directories that are NOT implied by existing target files.
+
+            // Get all unique directories needed for source files
+            var sourceDirs = sourceMap.Keys
+                .Select(k => Path.GetDirectoryName(k))
+                .Where(d => !string.IsNullOrEmpty(d))
+                .Select(d => d!)
+                .Distinct()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Get all unique directories that already exist (implied by target files)
+            var targetDirs = targetMap.Keys
+                .Select(k => Path.GetDirectoryName(k))
+                .Where(d => !string.IsNullOrEmpty(d))
+                .Select(d => d!)
+                .Distinct();
+
+            // Remove directories that already "exist" in our target map concept
+            sourceDirs.ExceptWith(targetDirs);
+
+            // Create only the missing ones
+            Parallel.ForEach(sourceDirs, dirRel =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.Combine(targetDir.FullName, dirRel));
+                }
+                catch
+                {
+                    // Ignore directory creation errors (e.g. race conditions)
+                }
+            });
+
+            // 4. Delete Extraneous Files in Target (Parallel)
+            Parallel.ForEach(targetMap, kvp =>
+            {
+                if (!sourceMap.ContainsKey(kvp.Key))
                     try
                     {
-                        item.File.Delete();
+                        kvp.Value.Delete();
                     }
                     catch
                     {
+                        // Ignore delete errors
                     }
             });
 
-            // 3. Create Directories & Copy/Update Files (Parallel)
+            // 5. Copy/Update Files (Parallel)
             Parallel.ForEach(sourceMap, kvp =>
             {
                 var relPath = kvp.Key;
                 var sFile = kvp.Value;
 
                 var targetFullPath = Path.Combine(targetDir.FullName, relPath);
-                var tFile = new FileInfo(targetFullPath);
 
                 var shouldCopy = false;
 
-                if (!tFile.Exists)
+                if (targetMap.TryGetValue(relPath, out var tFile))
                 {
-                    shouldCopy = true;
-                }
-                else
-                {
-                    // Compare Size
+                    // Use cached metadata
                     if (sFile.Length != tFile.Length)
                         shouldCopy = true;
                     // Compare Time (Allow 2s tolerance)
                     else if (Math.Abs((sFile.LastWriteTime - tFile.LastWriteTime).Ticks) > TicksThreshold)
                         shouldCopy = true;
                 }
+                else
+                {
+                    shouldCopy = true;
+                }
 
                 if (shouldCopy)
                     try
                     {
-                        if (tFile.Directory?.Exists == false) tFile.Directory.Create();
+                        // Directory is already guaranteed to exist from Step 3
                         sFile.CopyTo(targetFullPath, true);
                     }
                     catch (Exception copyEx)
@@ -223,7 +260,7 @@ public static class SyncService
                     }
             });
 
-            // 4. Cleanup Empty Directories
+            // 6. Cleanup Empty Directories
             DeleteEmptyDirs(targetDir);
         });
     }
@@ -232,9 +269,10 @@ public static class SyncService
     {
         try
         {
-            foreach (var d in dir.GetDirectories()) DeleteEmptyDirs(d);
-            // If no files and no subdirs, delete
-            if (dir.GetFiles().Length == 0 && dir.GetDirectories().Length == 0) dir.Delete();
+            foreach (var d in dir.EnumerateDirectories()) DeleteEmptyDirs(d);
+
+            // Optimization: Efficiently check for emptiness without allocating arrays
+            if (!dir.EnumerateFileSystemInfos().Any()) dir.Delete();
         }
         catch
         {
@@ -259,6 +297,10 @@ public static class SyncService
         if (Plugin.Instance == null) return;
         var directories = Plugin.Instance.Data.SyncDirectories;
         if (directories.Count == 0) return;
+
+        // Optimization: Scan local directory ONCE for all potential remotes
+        var localDir = new DirectoryInfo(localPath);
+        var localState = await GetDirectoryStateAsync(localDir);
 
         var targetRemotePaths = new List<(string Path, string Name)>();
         string? requiredSettingName = null;
@@ -298,7 +340,7 @@ public static class SyncService
                                 var fullUrl = string.IsNullOrWhiteSpace(relativeSuffix)
                                     ? remoteGameRoot
                                     : Path.Combine(remoteGameRoot, relativeSuffix);
-                                return (Path: fullUrl, root.Name);
+                                return (fullUrl, root.Name);
                             }
                         }
                         catch
@@ -352,10 +394,10 @@ public static class SyncService
             return;
         }
 
-        // Run syncs in parallel and collect results
+        // Run syncs in parallel using the PRE-SCANNED local state
         var results = await Task.WhenAll(targetRemotePaths.Select(async target =>
         {
-            return await SyncAsync(localPath, target.Path, target.Name);
+            return await SyncAsync(localDir, localState, target.Path, target.Name);
         }));
 
         var summaryBuilder = new StringBuilder();
@@ -367,7 +409,7 @@ public static class SyncService
         foreach (var res in results)
         {
             var emoji = res.Success ? "✅" : "❌";
-            var arrow = res.Skipped ? "=" : (res.IsUpload ? "->" : "<-");
+            var arrow = res.Skipped ? "=" : res.IsUpload ? "->" : "<-";
 
             // Format: [Emoji] [LocalLocalized] [Arrow] [RemoteName] ([RemotePath])
             summaryBuilder.AppendLine($"{emoji} {localString} {arrow} {res.RemoteName} ({res.RemotePath})");
