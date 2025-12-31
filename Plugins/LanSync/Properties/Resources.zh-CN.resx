@@ -182,19 +182,25 @@
     <data name="Ui_Error_PathNotFound" xml:space="preserve">
     <value>找不到 {0} 的路径：{1}</value>
   </data>
-  <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
+    <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
     <value>本地 -&gt; {0}</value>
   </data>
-  <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
+    <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
     <value>{0} -&gt; 本地</value>
   </data>
-  <data name="Ui_Browse" xml:space="preserve">
+    <data name="Ui_Browse" xml:space="preserve">
     <value>选择文件夹</value>
   </data>
-  <data name="Ui_Type_User" xml:space="preserve">
+    <data name="Ui_Type_User" xml:space="preserve">
     <value>用户目录</value>
   </data>
-  <data name="Ui_Type_Library" xml:space="preserve">
+    <data name="Ui_Type_Library" xml:space="preserve">
     <value>库目录</value>
+  </data>
+    <data name="Ui_Local" xml:space="preserve">
+    <value>本地</value>
+  </data>
+    <data name="Ui_SyncTaskComplete" xml:space="preserve">
+    <value>同步任务成功</value>
   </data>
 </root>

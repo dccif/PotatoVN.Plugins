@@ -182,19 +182,25 @@
     <data name="Ui_Error_PathNotFound" xml:space="preserve">
     <value>{0} のパスが見つかりません：{1}</value>
   </data>
-  <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
+    <data name="Ui_SyncToRemoteFormat" xml:space="preserve">
     <value>ローカル -&gt; {0}</value>
   </data>
-  <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
+    <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
     <value>{0} -&gt; ローカル</value>
   </data>
-  <data name="Ui_Browse" xml:space="preserve">
+    <data name="Ui_Browse" xml:space="preserve">
     <value>フォルダを選択</value>
   </data>
-  <data name="Ui_Type_User" xml:space="preserve">
+    <data name="Ui_Type_User" xml:space="preserve">
     <value>ユーザーディレクトリ</value>
   </data>
-  <data name="Ui_Type_Library" xml:space="preserve">
+    <data name="Ui_Type_Library" xml:space="preserve">
     <value>ライブラリディレクトリ</value>
+  </data>
+    <data name="Ui_Local" xml:space="preserve">
+    <value>ローカル</value>
+  </data>
+    <data name="Ui_SyncTaskComplete" xml:space="preserve">
+    <value>同期完了</value>
   </data>
 </root>

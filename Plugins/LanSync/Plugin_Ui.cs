@@ -241,7 +241,7 @@ public partial class Plugin
         if (!_data.SyncDirectories.Any(d => d.Name.Equals(baseName, StringComparison.OrdinalIgnoreCase)))
             return baseName;
 
-        int i = 1;
+        var i = 1;
         while (_data.SyncDirectories.Any(d => d.Name.Equals($"{baseName} {i}", StringComparison.OrdinalIgnoreCase)))
             i++;
 
@@ -251,7 +251,7 @@ public partial class Plugin
     private static string GetDefaultNameForType(SyncDirectoryType type)
     {
         return type == SyncDirectoryType.User
-            ? (GetLocalized("Ui_UserData") ?? "User Data")
-            : (GetLocalized("Ui_GameRoot") ?? "Game Root");
+            ? GetLocalized("Ui_UserData") ?? "User Data"
+            : GetLocalized("Ui_GameRoot") ?? "Game Root";
     }
 }

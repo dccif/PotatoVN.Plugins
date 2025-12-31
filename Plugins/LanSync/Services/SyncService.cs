@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase.Services;
@@ -11,6 +12,16 @@ namespace PotatoVN.App.PluginBase.Services;
 public static class SyncService
 {
     private const long TicksThreshold = 2 * 1000 * 10000; // 2 seconds tolerance for file time comparison
+
+    public class SyncOperationResult
+    {
+        public bool Success { get; set; }
+        public bool Skipped { get; set; }
+        public bool IsUpload { get; set; } // true: Local -> Remote
+        public string RemoteName { get; set; } = string.Empty;
+        public string RemotePath { get; set; } = string.Empty;
+        public string ErrorMessage { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Syncs two folders using a "Latest Modified Wins" strategy with differential file copying.
@@ -24,11 +35,23 @@ public static class SyncService
     /// <param name="localPath">Absolute path for local folder</param>
     /// <param name="remotePath">Absolute path for remote folder</param>
     /// <param name="remoteName">Optional name of remote for logging</param>
-    public static async Task SyncAsync(string localPath, string remotePath, string? remoteName = null)
+    public static async Task<SyncOperationResult> SyncAsync(string localPath, string remotePath,
+        string? remoteName = null)
     {
+        var result = new SyncOperationResult
+        {
+            RemoteName = remoteName ?? "Unknown",
+            RemotePath = remotePath
+        };
+
         try
         {
-            if (string.IsNullOrWhiteSpace(localPath) || string.IsNullOrWhiteSpace(remotePath)) return;
+            if (string.IsNullOrWhiteSpace(localPath) || string.IsNullOrWhiteSpace(remotePath))
+            {
+                result.Success = false;
+                result.ErrorMessage = "Invalid paths";
+                return result;
+            }
 
             var localDir = new DirectoryInfo(localPath);
             var remoteDir = new DirectoryInfo(remotePath);
@@ -42,47 +65,59 @@ public static class SyncService
             var localState = localTask.Result;
             var remoteState = remoteTask.Result;
 
-            if (!localState.Exists && !remoteState.Exists) return;
+            if (!localState.Exists && !remoteState.Exists)
+            {
+                result.Skipped = true;
+                result.Success = true;
+                // Default direction
+                return result;
+            }
 
             // 2. Tolerance check for "Up to date"
             if (Math.Abs((localState.MaxWriteTime - remoteState.MaxWriteTime).Ticks) < TicksThreshold)
             {
-                Plugin.Instance?.Notify(InfoBarSeverity.Informational,
-                    Plugin.GetLocalized("Ui_SyncUpToDate") ?? "Save is up to date.");
-                return;
+                result.Skipped = true;
+                result.Success = true;
+                return result;
             }
 
             // 3. Determine Direction
             if (remoteState.MaxWriteTime > localState.MaxWriteTime)
             {
                 // Source: Remote -> Target: Local
-                if (!remoteState.Exists) return;
+                if (!remoteState.Exists)
+                {
+                    result.Skipped = true;
+                    result.Success = true;
+                    return result;
+                }
+
                 await SyncDifferentialAsync(remoteDir, remoteState.Files, localDir, localState.Files);
-
-                var msg = !string.IsNullOrEmpty(remoteName)
-                    ? string.Format(Plugin.GetLocalized("Ui_SyncFromRemoteFormat") ?? "{0} -> Local", remoteName)
-                    : Plugin.GetLocalized("Ui_SyncFromRemoteSuccess") ?? "Synced from remote.";
-
-                Plugin.Instance?.Notify(InfoBarSeverity.Success, msg);
+                result.IsUpload = false;
+                result.Success = true;
             }
             else
             {
                 // Source: Local -> Target: Remote
-                if (!localState.Exists) return;
+                if (!localState.Exists)
+                {
+                    result.Skipped = true;
+                    result.Success = true;
+                    return result;
+                }
+
                 await SyncDifferentialAsync(localDir, localState.Files, remoteDir, remoteState.Files);
-
-                var msg = !string.IsNullOrEmpty(remoteName)
-                    ? string.Format(Plugin.GetLocalized("Ui_SyncToRemoteFormat") ?? "Local -> {0}", remoteName)
-                    : Plugin.GetLocalized("Ui_SyncToRemoteSuccess") ?? "Synced to remote.";
-
-                Plugin.Instance?.Notify(InfoBarSeverity.Success, msg);
+                result.IsUpload = true;
+                result.Success = true;
             }
         }
         catch (Exception ex)
         {
-            Plugin.Instance?.Notify(InfoBarSeverity.Error,
-                string.Format(Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error: {0}", ex.Message));
+            result.Success = false;
+            result.ErrorMessage = ex.Message;
         }
+
+        return result;
     }
 
     private class DirectoryState
@@ -98,10 +133,7 @@ public static class SyncService
         {
             try
             {
-                if (!dir.Exists)
-                {
-                    return new DirectoryState { Exists = false, MaxWriteTime = DateTime.MinValue };
-                }
+                if (!dir.Exists) return new DirectoryState { Exists = false, MaxWriteTime = DateTime.MinValue };
 
                 var files = dir.GetFiles("*", SearchOption.AllDirectories);
                 var maxTime = files.Length > 0 ? files.Max(f => f.LastWriteTime) : DateTime.MinValue;
@@ -123,7 +155,8 @@ public static class SyncService
     /// <summary>
     /// Mirrors source directory to target directory efficiently using cached file lists.
     /// </summary>
-    private static async Task SyncDifferentialAsync(DirectoryInfo sourceDir, FileInfo[] sourceFiles, DirectoryInfo targetDir, FileInfo[] targetFiles)
+    private static async Task SyncDifferentialAsync(DirectoryInfo sourceDir, FileInfo[] sourceFiles,
+        DirectoryInfo targetDir, FileInfo[] targetFiles)
     {
         await Task.Run(() =>
         {
@@ -138,14 +171,19 @@ public static class SyncService
             }
 
             // 2. Delete Extraneous Files in Target (Parallel)
-            var targetList = targetFiles.Select(f => new { File = f, RelPath = Path.GetRelativePath(targetDir.FullName, f.FullName) }).ToList();
+            var targetList = targetFiles.Select(f => new
+            { File = f, RelPath = Path.GetRelativePath(targetDir.FullName, f.FullName) }).ToList();
 
             Parallel.ForEach(targetList, item =>
             {
                 if (!sourceMap.ContainsKey(item.RelPath))
-                {
-                    try { item.File.Delete(); } catch { }
-                }
+                    try
+                    {
+                        item.File.Delete();
+                    }
+                    catch
+                    {
+                    }
             });
 
             // 3. Create Directories & Copy/Update Files (Parallel)
@@ -174,7 +212,6 @@ public static class SyncService
                 }
 
                 if (shouldCopy)
-                {
                     try
                     {
                         if (tFile.Directory?.Exists == false) tFile.Directory.Create();
@@ -184,7 +221,6 @@ public static class SyncService
                     {
                         System.Diagnostics.Debug.WriteLine($"[LanSync] Copy Error: {copyEx.Message}");
                     }
-                }
             });
 
             // 4. Cleanup Empty Directories
@@ -245,7 +281,8 @@ public static class SyncService
                 var relativeSuffix = GetRelativeSuffix(displayPath, "%GameRoot%");
 
                 // Check all Library roots in parallel to find valid game directories
-                var libraryRoots = directories.Where(d => d.Type == SyncDirectoryType.Library && !string.IsNullOrWhiteSpace(d.Path)).ToList();
+                var libraryRoots = directories
+                    .Where(d => d.Type == SyncDirectoryType.Library && !string.IsNullOrWhiteSpace(d.Path)).ToList();
 
                 // We only sync to remote library roots that actually contain this game folder to avoid creating mess
                 var validPaths = await Task.WhenAll(libraryRoots.Select(async root =>
@@ -261,24 +298,28 @@ public static class SyncService
                                 var fullUrl = string.IsNullOrWhiteSpace(relativeSuffix)
                                     ? remoteGameRoot
                                     : Path.Combine(remoteGameRoot, relativeSuffix);
-                                return (Path: fullUrl, Name: root.Name);
+                                return (Path: fullUrl, root.Name);
                             }
                         }
-                        catch { }
-                        return (null as (string Path, string Name)?);
+                        catch
+                        {
+                        }
+
+                        return null as (string Path, string Name)?;
                     });
                 }));
 
                 targetRemotePaths.AddRange(validPaths.Where(x => x.HasValue).Select(x => x!.Value));
             }
         }
-        else if (displayPath.StartsWith("%"))
+        else if (displayPath.StartsWith('%'))
         {
             // Case 2: User Data (Documents, AppData, etc.)
             requiredSettingName = Plugin.GetLocalized("Ui_UserData") ?? "User Data";
 
-            var userDataDirs = directories.Where(d => d.Type == SyncDirectoryType.User && !string.IsNullOrWhiteSpace(d.Path)).ToList();
-            if (userDataDirs.Any())
+            var userDataDirs = directories
+                .Where(d => d.Type == SyncDirectoryType.User && !string.IsNullOrWhiteSpace(d.Path)).ToList();
+            if (userDataDirs.Count != 0)
             {
                 var closeIndex = displayPath.IndexOf('%', 1);
                 if (closeIndex > 1)
@@ -290,10 +331,12 @@ public static class SyncService
                     foreach (var userDir in userDataDirs)
                     {
                         var remoteRoot = string.IsNullOrEmpty(relativeBase)
-                             ? userDir.Path
-                             : Path.Combine(userDir.Path, relativeBase);
+                            ? userDir.Path
+                            : Path.Combine(userDir.Path, relativeBase);
 
-                        var fullPath = string.IsNullOrWhiteSpace(relativeSuffix) ? remoteRoot : Path.Combine(remoteRoot, relativeSuffix);
+                        var fullPath = string.IsNullOrWhiteSpace(relativeSuffix)
+                            ? remoteRoot
+                            : Path.Combine(remoteRoot, relativeSuffix);
                         targetRemotePaths.Add((fullPath, userDir.Name));
                     }
                 }
@@ -303,39 +346,53 @@ public static class SyncService
         if (targetRemotePaths.Count == 0)
         {
             if (requiredSettingName != null)
-            {
-                // Only warn if we actually expected to find a path but didn't (and we had roots configured)
-                // If the game just doesn't exist on remote library roots, silent fail might be better? 
-                // But sticking to original logic of warning if logic fails.
-                // Actually, for GameRoot, if we didn't find the game folder on any remote root, maybe it's cleaner to warn?
-                // Current behavior: Warn if "Could not determine any valid remote sync path".
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
-                   Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                   "Could not determine any valid remote sync path for this game.");
-            }
+                    Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
+                    "Could not determine any valid remote sync path for this game.");
             return;
         }
 
-        // Run syncs in parallel
-        await Task.WhenAll(targetRemotePaths.Select(async target =>
+        // Run syncs in parallel and collect results
+        var results = await Task.WhenAll(targetRemotePaths.Select(async target =>
         {
-            try
-            {
-                await SyncAsync(localPath, target.Path, target.Name);
-            }
-            catch (Exception ex)
-            {
-                Plugin.Instance.Notify(InfoBarSeverity.Error,
-                    Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                    ex.Message);
-            }
+            return await SyncAsync(localPath, target.Path, target.Name);
         }));
+
+        var summaryBuilder = new StringBuilder();
+        var anyError = false;
+        var hasContent = false;
+
+        var localString = Plugin.GetLocalized("Ui_Local") ?? "Local";
+
+        foreach (var res in results)
+        {
+            var emoji = res.Success ? "✅" : "❌";
+            var arrow = res.Skipped ? "=" : (res.IsUpload ? "->" : "<-");
+
+            // Format: [Emoji] [LocalLocalized] [Arrow] [RemoteName] ([RemotePath])
+            summaryBuilder.AppendLine($"{emoji} {localString} {arrow} {res.RemoteName} ({res.RemotePath})");
+
+            if (!res.Success) anyError = true;
+            hasContent = true;
+        }
+
+        if (hasContent)
+        {
+            // Remove last newline
+            var summary = summaryBuilder.ToString().TrimEnd();
+
+            Plugin.Instance.Notify(
+                anyError ? InfoBarSeverity.Warning : InfoBarSeverity.Success,
+                Plugin.GetLocalized("Ui_SyncTaskComplete") ?? "Sync Complete",
+                summary);
+        }
     }
 
     private static string GetRelativeSuffix(string displayPath, string rootToken)
     {
         if (displayPath.Length > rootToken.Length)
-            return displayPath[rootToken.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return displayPath[rootToken.Length..]
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return string.Empty;
     }
 
