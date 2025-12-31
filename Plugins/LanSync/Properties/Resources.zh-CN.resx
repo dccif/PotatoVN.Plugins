@@ -188,4 +188,13 @@
   <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
     <value>{0} -&gt; 本地</value>
   </data>
+  <data name="Ui_Browse" xml:space="preserve">
+    <value>选择文件夹</value>
+  </data>
+  <data name="Ui_Type_User" xml:space="preserve">
+    <value>用户目录</value>
+  </data>
+  <data name="Ui_Type_Library" xml:space="preserve">
+    <value>库目录</value>
+  </data>
 </root>

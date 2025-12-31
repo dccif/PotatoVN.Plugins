@@ -5,6 +5,7 @@ using PotatoVN.App.PluginBase.Helper;
 using PotatoVN.App.PluginBase.Models;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using Windows.Storage.Pickers;
 
 namespace PotatoVN.App.PluginBase;
@@ -59,7 +60,7 @@ public partial class Plugin
 
         addBtn.Click += (s, e) =>
         {
-            _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_NewFolder") ?? "New Folder", ""));
+            _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_GameRoot") ?? "Game Root", "", SyncDirectoryType.Library));
             SaveData();
             RefreshList(listContainer);
         };
@@ -72,19 +73,43 @@ public partial class Plugin
     {
         container.Children.Clear();
 
+        var typeOptions = Enum.GetValues(typeof(SyncDirectoryType))
+            .Cast<SyncDirectoryType>()
+            .Select(t => new TypeOption(t, GetLocalized($"Ui_Type_{t}") ?? t.ToString()))
+            .ToList();
+
         for (var i = 0; i < _data.SyncDirectories.Count; i++)
         {
             var dir = _data.SyncDirectories[i];
-            var isFixed = i < 2; // First two are fixed (Label/Remove locked)
+            var isFixed = i < 2; // First two are fixed (Label/Remove/Type locked)
 
             Grid row = new();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); // Type
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Label
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) }); // Path
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Picker
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Remove
 
             row.ColumnSpacing = 8;
-            row.Margin = new Thickness(0, 2, 0, 0);
+            row.Margin = new Thickness(0, 4, 0, 4);
+
+            // 0. Type Selector
+            ComboBox typeBox = new()
+            {
+                ItemsSource = typeOptions,
+                DisplayMemberPath = "Label",
+                SelectedItem = typeOptions.FirstOrDefault(t => t.Type == dir.Type),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                IsEnabled = !isFixed
+            };
+            typeBox.SelectionChanged += (s, e) =>
+            {
+                if (typeBox.SelectedItem is TypeOption option)
+                {
+                    dir.Type = option.Type;
+                    SaveData();
+                }
+            };
 
             // 1. Label
             TextBox labelBox = new()
@@ -105,15 +130,17 @@ public partial class Plugin
             {
                 Text = dir.Path,
                 PlaceholderText = GetLocalized("Ui_Path") ?? "Path",
-                IsReadOnly = true
+                IsReadOnly = true,
+                VerticalAlignment = VerticalAlignment.Center
             };
 
             // 3. Browse Button
             Button browseBtn = new()
             {
-                Content = "...",
+                Content = new SymbolIcon(Symbol.Folder),
                 IsEnabled = true
             };
+            ToolTipService.SetToolTip(browseBtn, GetLocalized("Ui_Browse") ?? "Browse Folder");
             browseBtn.Click += async (s, e) =>
             {
                 try
@@ -143,9 +170,10 @@ public partial class Plugin
             // 4. Remove Button
             Button removeBtn = new()
             {
-                Content = "X", // Or use a symbol icon if available
+                Content = new SymbolIcon(Symbol.Delete),
                 IsEnabled = !isFixed
             };
+            ToolTipService.SetToolTip(removeBtn, GetLocalized("Ui_Remove") ?? "Remove");
             removeBtn.Click += (s, e) =>
             {
                 _data.SyncDirectories.Remove(dir);
@@ -153,11 +181,13 @@ public partial class Plugin
                 RefreshList(container);
             };
 
-            Grid.SetColumn(labelBox, 0);
-            Grid.SetColumn(pathBox, 1);
-            Grid.SetColumn(browseBtn, 2);
-            Grid.SetColumn(removeBtn, 3);
+            Grid.SetColumn(typeBox, 0);
+            Grid.SetColumn(labelBox, 1);
+            Grid.SetColumn(pathBox, 2);
+            Grid.SetColumn(browseBtn, 3);
+            Grid.SetColumn(removeBtn, 4);
 
+            row.Children.Add(typeBox);
             row.Children.Add(labelBox);
             row.Children.Add(pathBox);
             row.Children.Add(browseBtn);
@@ -165,5 +195,11 @@ public partial class Plugin
 
             container.Children.Add(row);
         }
+    }
+
+    private class TypeOption(SyncDirectoryType type, string label)
+    {
+        public SyncDirectoryType Type { get; set; } = type;
+        public string Label { get; set; } = label;
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml.Controls;
+using PotatoVN.App.PluginBase.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -210,19 +211,8 @@ public static class SyncService
             // Case 1: Game Root
             requiredSettingName = Plugin.GetLocalized("Ui_GameRoot") ?? "Game Root";
 
-            // Check if any Library Root is configured
-            if (directories.Count < 2)
-            {
-                Plugin.Instance.Notify(InfoBarSeverity.Warning,
-                   Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                   string.Format(Plugin.GetLocalized("Ui_Error_SettingNotSet") ?? "Sync path for {0} is not set.",
-                       requiredSettingName));
-                return;
-            }
-
-            // Collect all potential library roots (Index 1 and above)
-            // We verify existence inside the loop or filter valid ones
-            var libraryRoots = directories.Skip(1)
+            // Collect all Library Roots
+            var libraryRoots = directories.Where(d => d.Type == SyncDirectoryType.Library)
                                           .Where(d => !string.IsNullOrWhiteSpace(d.Path))
                                           .ToList();
 
@@ -264,7 +254,6 @@ public static class SyncService
                 {
                     if (!Directory.Exists(root.Path)) continue;
 
-                    // Check if Base Path Exists and contains the game folder
                     var remoteGameRoot = Path.Combine(root.Path, gameFolderName);
                     if (Directory.Exists(remoteGameRoot))
                     {
@@ -281,10 +270,12 @@ public static class SyncService
         {
             // Case 2: User Data (Documents, AppData, etc.)
             requiredSettingName = Plugin.GetLocalized("Ui_UserData") ?? "User Data";
-            var userDataDir = directories[0];
-            var requiredPath = userDataDir.Path;
 
-            if (string.IsNullOrWhiteSpace(requiredPath))
+            var userDataDirs = directories.Where(d => d.Type == SyncDirectoryType.User)
+                                          .Where(d => !string.IsNullOrWhiteSpace(d.Path))
+                                          .ToList();
+
+            if (userDataDirs.Count == 0)
             {
                 Plugin.Instance.Notify(InfoBarSeverity.Warning,
                     Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
@@ -293,27 +284,12 @@ public static class SyncService
                 return;
             }
 
-            // Check if Base Path Exists
-            if (!Directory.Exists(requiredPath))
-            {
-                Plugin.Instance.Notify(InfoBarSeverity.Warning,
-                    Plugin.GetLocalized("Ui_SyncError") ?? "Sync Error",
-                    string.Format(Plugin.GetLocalized("Ui_Error_PathNotFound") ?? "Path for {0} not found: {1}",
-                        requiredSettingName, requiredPath));
-                return;
-            }
-
             // Find which token matches
             var closeIndex = displayPath.IndexOf('%', 1);
             if (closeIndex > 1)
             {
                 var token = displayPath.Substring(0, closeIndex + 1); // e.g. %Documents%
-
                 var relativeBase = GetRelativePathFromToken(token);
-
-                var remoteRoot = string.IsNullOrEmpty(relativeBase)
-                    ? userDataDir.Path
-                    : Path.Combine(userDataDir.Path, relativeBase);
 
                 string relativeSuffix;
                 if (displayPath.Length > token.Length)
@@ -322,8 +298,15 @@ public static class SyncService
                 else
                     relativeSuffix = string.Empty;
 
-                var fullPath = string.IsNullOrWhiteSpace(relativeSuffix) ? remoteRoot : Path.Combine(remoteRoot, relativeSuffix);
-                targetRemotePaths.Add((fullPath, userDataDir.Name));
+                foreach (var userDir in userDataDirs)
+                {
+                    var remoteRoot = string.IsNullOrEmpty(relativeBase)
+                         ? userDir.Path
+                         : Path.Combine(userDir.Path, relativeBase);
+
+                    var fullPath = string.IsNullOrWhiteSpace(relativeSuffix) ? remoteRoot : Path.Combine(remoteRoot, relativeSuffix);
+                    targetRemotePaths.Add((fullPath, userDir.Name));
+                }
             }
         }
 

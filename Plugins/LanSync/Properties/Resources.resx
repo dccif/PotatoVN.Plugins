@@ -188,4 +188,13 @@
   <data name="Ui_SyncFromRemoteFormat" xml:space="preserve">
     <value>{0} -&gt; Local</value>
   </data>
+  <data name="Ui_Browse" xml:space="preserve">
+    <value>Select Folder</value>
+  </data>
+  <data name="Ui_Type_User" xml:space="preserve">
+    <value>User Directory</value>
+  </data>
+  <data name="Ui_Type_Library" xml:space="preserve">
+    <value>Library Directory</value>
+  </data>
 </root>

@@ -121,13 +121,12 @@ public partial class Plugin : IPlugin, IPluginSetting
                                    "使得局域网中两个电脑上的存档同步";
             }
 
-            // Default mandatory directories (Initialize after language setup)
             if (_data.SyncDirectories.Count == 0)
             {
                 _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_UserData") ?? "User Data",
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), SyncDirectoryType.User));
                 _data.SyncDirectories.Add(new SyncDirectory(GetLocalized("Ui_GameRoot") ?? "Game Root",
-                    ""));
+                    "", SyncDirectoryType.Library));
             }
         }
         catch (Exception ex)
