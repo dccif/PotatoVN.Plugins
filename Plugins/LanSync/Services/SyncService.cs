@@ -62,7 +62,7 @@ public static class SyncService
             }
 
             // Tolerance check for "Up to date"
-            if (Math.Abs((localState.MaxWriteTime - remoteState.MaxWriteTime).Ticks) < TicksThreshold)
+            if (Math.Abs((localState.LastModified - remoteState.LastModified).Ticks) < TicksThreshold)
             {
                 result.Skipped = true;
                 result.Success = true;
@@ -70,7 +70,7 @@ public static class SyncService
             }
 
             // Determine Direction
-            if (remoteState.MaxWriteTime > localState.MaxWriteTime)
+            if (remoteState.LastModified > localState.LastModified)
             {
                 // Sync Remote -> Local
                 if (!remoteState.Exists)
@@ -111,7 +111,7 @@ public static class SyncService
     private class DirectoryState
     {
         public bool Exists { get; set; }
-        public DateTime MaxWriteTime { get; set; }
+        public DateTime LastModified { get; set; }
         public FileInfo[] Files { get; set; } = [];
     }
 
@@ -121,7 +121,7 @@ public static class SyncService
         {
             try
             {
-                if (!dir.Exists) return new DirectoryState { Exists = false, MaxWriteTime = DateTime.MinValue };
+                if (!dir.Exists) return new DirectoryState { Exists = false, LastModified = DateTime.MinValue };
 
                 var options = new EnumerationOptions
                 {
@@ -134,18 +134,20 @@ public static class SyncService
                 // Use EnumerateFiles heavily optimized by OS for bulk retrieval, but safe via options
                 // Note: ToList() helps freeze the state, but we need array for index access later
                 var files = dir.GetFiles("*", options);
-                var maxTime = files.Length > 0 ? files.Max(f => f.LastWriteTime) : DateTime.MinValue;
+                var maxFileTime = files.Length > 0 ? files.Max(f => f.LastWriteTime) : DateTime.MinValue;
+                // Use the latest of Directory Time (structure change) or File Time (content change)
+                var lastModified = maxFileTime > dir.LastWriteTime ? maxFileTime : dir.LastWriteTime;
 
                 return new DirectoryState
                 {
                     Exists = true,
-                    MaxWriteTime = maxTime,
+                    LastModified = lastModified,
                     Files = files
                 };
             }
             catch
             {
-                return new DirectoryState { Exists = false, MaxWriteTime = DateTime.MinValue };
+                return new DirectoryState { Exists = false, LastModified = DateTime.MinValue };
             }
         });
     }
