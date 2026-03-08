@@ -4,7 +4,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PotatoVN.App.PluginBase.SaveDetection.Models;
 
@@ -13,6 +16,9 @@ namespace PotatoVN.App.PluginBase.SaveDetection.Models;
 /// </summary>
 public static class Constants
 {
+    private const string RemoteConfigUrl =
+        "https://raw.githubusercontent.com/dccif/PotatoVN.Plugins/main/Plugins/GameSaveDetector/SaveDetection/save_detection_config.json";
+
     /// <summary>
     /// 存档文件扩展名（不带点号）
     /// </summary>
@@ -105,7 +111,7 @@ public static class Constants
     /// <summary>
     /// 常见的存档目录模式
     /// </summary>
-    public static readonly string[] SaveDirectoryPatterns =
+    public static string[] SaveDirectoryPatterns =
     {
         "save", "saves", "savedata", "save_data", "userdata", "user_data",
         "data", "game", "games", "appdata", "local", "roaming"
@@ -114,7 +120,7 @@ public static class Constants
     /// <summary>
     /// 汉化文件夹后缀模式（用于识别汉化版本的存档目录）
     /// </summary>
-    public static readonly string[] ChineseLocalizationSuffixes =
+    public static string[] ChineseLocalizationSuffixes =
     {
         "chs", "cht", "cn", "zh", "zhcn", "zhtw", "sc", "tc", "chinese",
         "简体", "繁体", "中文", "汉化", "汉化版", "steam简中"
@@ -123,7 +129,7 @@ public static class Constants
     /// <summary>
     /// 存档目录常见末尾字符模式（用于更灵活的匹配）
     /// </summary>
-    public static readonly string[] SaveDirectorySuffixPatterns =
+    public static string[] SaveDirectorySuffixPatterns =
     {
         "data", "save", "saves", "games", "game", "user", "profile", "config",
         "settings", "storage", "backup", "cache", "temp", "local", "roaming",
@@ -208,12 +214,140 @@ public static class Constants
     /// <summary>
     /// 文件后缀黑名单
     /// </summary>
-    public static readonly string[] ExtensionBlacklist =
+    public static string[] ExtensionBlacklist =
     {
         ".exe", ".dll", ".lnk", ".ini", ".log", ".tmp", ".pdb", ".msi",
         ".ypf", ".arc", ".pak", ".xp3", ".dat", ".bin", ".ogg", ".wav", ".mp4", ".wmv", ".bik",
         ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".svg", ".ico", ".ttf", ".otf", ".woff", ".woff2"
     };
+
+    /// <summary>
+    /// 从已有的 JSON 字符串加载并合并配置（用于读取缓存）
+    /// </summary>
+    public static void ApplyConfig(string jsonText)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonText);
+            var root = doc.RootElement;
+
+            // HashSet<string> 类型字段的合并
+            MergeHashSet(root, nameof(SaveFileExtensions), SaveFileExtensions);
+            MergeHashSet(root, nameof(SaveFileKeywords), SaveFileKeywords);
+            MergeHashSet(root, nameof(ExcludePathKeywords), ExcludePathKeywords);
+
+            // Dictionary<string, List<string>> 类型字段的合并
+            MergeDictListString(root, nameof(DeveloperVariants), DeveloperVariants);
+            MergeDictListString(root, nameof(WordSimplifications), WordSimplifications);
+            MergeDictListString(root, nameof(JapaneseMappings), JapaneseMappings);
+
+            // Dictionary<string, string> 类型字段的合并
+            MergeDictString(root, nameof(NumberMappings), NumberMappings);
+
+            // Dictionary<string, int> 类型字段的合并
+            MergeDictInt(root, nameof(SpecialPathScores), SpecialPathScores);
+
+            // string[] 类型字段的合并
+            SaveDirectoryPatterns = MergeStringArray(root, nameof(SaveDirectoryPatterns), SaveDirectoryPatterns);
+            ChineseLocalizationSuffixes = MergeStringArray(root, nameof(ChineseLocalizationSuffixes), ChineseLocalizationSuffixes);
+            SaveDirectorySuffixPatterns = MergeStringArray(root, nameof(SaveDirectorySuffixPatterns), SaveDirectorySuffixPatterns);
+            ExtensionBlacklist = MergeStringArray(root, nameof(ExtensionBlacklist), ExtensionBlacklist);
+
+            Debug.WriteLine("[Constants] External config applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Constants] Failed to apply external config: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 从 GitHub 远程拉取外部 JSON 配置（返回 JSON 字符串用于缓存，失败返回 null）
+    /// </summary>
+    public static async Task<string?> FetchConfigFromGitHubAsync()
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var jsonText = await http.GetStringAsync(RemoteConfigUrl).ConfigureAwait(false);
+            Debug.WriteLine("[Constants] Config fetched successfully from GitHub.");
+            return jsonText;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Constants] Failed to fetch config from GitHub: {ex.Message}");
+            return null;
+        }
+    }
+
+    #region Config Merge Helpers
+
+    private static void MergeHashSet(JsonElement root, string propertyName, HashSet<string> target)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind != JsonValueKind.Array) return;
+        foreach (var item in element.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (!string.IsNullOrEmpty(value))
+                target.Add(value);
+        }
+    }
+
+    private static void MergeDictListString(JsonElement root, string propertyName, Dictionary<string, List<string>> target)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind != JsonValueKind.Object) return;
+        foreach (var prop in element.EnumerateObject())
+        {
+            if (prop.Value.ValueKind != JsonValueKind.Array) continue;
+            if (!target.TryGetValue(prop.Name, out var list))
+            {
+                list = new List<string>();
+                target[prop.Name] = list;
+            }
+            foreach (var item in prop.Value.EnumerateArray())
+            {
+                var value = item.GetString();
+                if (!string.IsNullOrEmpty(value))
+                    list.Add(value);
+            }
+        }
+    }
+
+    private static void MergeDictString(JsonElement root, string propertyName, Dictionary<string, string> target)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind != JsonValueKind.Object) return;
+        foreach (var prop in element.EnumerateObject())
+        {
+            var value = prop.Value.GetString();
+            if (value != null)
+                target[prop.Name] = value;
+        }
+    }
+
+    private static void MergeDictInt(JsonElement root, string propertyName, Dictionary<string, int> target)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind != JsonValueKind.Object) return;
+        foreach (var prop in element.EnumerateObject())
+        {
+            if (prop.Value.TryGetInt32(out var intValue))
+                target[prop.Name] = intValue;
+        }
+    }
+
+    private static string[] MergeStringArray(JsonElement root, string propertyName, string[] existing)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind != JsonValueKind.Array) return existing;
+        var extras = new List<string>();
+        foreach (var item in element.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (!string.IsNullOrEmpty(value))
+                extras.Add(value);
+        }
+        return extras.Count > 0 ? existing.Concat(extras).ToArray() : existing;
+    }
+
+    #endregion
 
     public static HashSet<string> GetGenericRoots()
     {

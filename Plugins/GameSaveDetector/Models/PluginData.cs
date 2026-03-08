@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System;
 
 namespace PotatoVN.App.PluginBase.Models;
 
@@ -29,4 +30,14 @@ public partial class PluginData : ObservableRecipient
         get => _originalAutoDetectValue;
         set => SetProperty(ref _originalAutoDetectValue, value);
     }
+
+    /// <summary>
+    /// 缓存的外部 JSON 配置（从 GitHub 拉取后保存，避免每次启动都请求）
+    /// </summary>
+    public string? CachedExternalConfig { get; set; }
+
+    /// <summary>
+    /// 上次从 GitHub 拉取配置的 UTC 时间
+    /// </summary>
+    public DateTime? ConfigLastFetchedUtc { get; set; }
 }

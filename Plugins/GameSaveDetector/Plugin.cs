@@ -92,6 +92,36 @@ public partial class Plugin : IPlugin, IPluginSetting
             Debug.WriteLine($"[Plugin] Language Setup Error: {ex}");
         }
 
+        // 加载外部配置（优先使用缓存，过期或首次时从 GitHub 拉取）
+        var configCacheExpiry = TimeSpan.FromDays(7);
+        var needFetch = _data.CachedExternalConfig == null
+                        || _data.ConfigLastFetchedUtc == null
+                        || DateTime.UtcNow - _data.ConfigLastFetchedUtc.Value > configCacheExpiry;
+
+        if (needFetch)
+        {
+            var freshJson = await SaveDetection.Models.Constants.FetchConfigFromGitHubAsync();
+            if (freshJson != null)
+            {
+                SaveDetection.Models.Constants.ApplyConfig(freshJson);
+                _data.CachedExternalConfig = freshJson;
+                _data.ConfigLastFetchedUtc = DateTime.UtcNow;
+                SaveData();
+                Debug.WriteLine("[Plugin] External config fetched from GitHub and cached.");
+            }
+            else if (_data.CachedExternalConfig != null)
+            {
+                // 网络失败但有旧缓存，使用旧缓存
+                SaveDetection.Models.Constants.ApplyConfig(_data.CachedExternalConfig);
+                Debug.WriteLine("[Plugin] GitHub fetch failed, using stale cached config.");
+            }
+        }
+        else
+        {
+            SaveDetection.Models.Constants.ApplyConfig(_data.CachedExternalConfig!);
+            Debug.WriteLine("[Plugin] External config loaded from cache.");
+        }
+
         await PluginPatch.InitializeAsync(_data);
         SaveData();
 
