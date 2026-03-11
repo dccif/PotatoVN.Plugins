@@ -11,7 +11,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -116,8 +118,8 @@ public class PluginSaveDetectorTask : BgTaskBase
 
                 ShowNotification(Title, msg);
 
-                // 探测成功，清空日志缓冲区，不生成文件
-                context.ClearLog();
+                // 探测成功，也写入日志以便验证结果是否正确
+                WriteDetectionLog(context, true, context.FinalPath);
             }
             else
             {
@@ -127,18 +129,18 @@ public class PluginSaveDetectorTask : BgTaskBase
                     ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_NotFound") ?? "No save detected");
 
                 // 探测失败，将日志写入文件
-                WriteDetectionLog(context);
+                WriteDetectionLog(context, false);
             }
         }
         catch (OperationCanceledException)
         {
             ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_Timeout") ?? "Detection timeout");
-            WriteDetectionLog(context);
+            WriteDetectionLog(context, false, reason: "OperationCancelled/Timeout");
         }
         catch (Exception ex)
         {
             ChangeProgress(-1, 1, $"{Plugin.GetLocalized("GameSaveDetector_Failed")}: {ex.Message}");
-            WriteDetectionLog(context);
+            WriteDetectionLog(context, false, reason: $"Exception: {ex.Message}");
         }
     }
 
@@ -204,9 +206,23 @@ public class PluginSaveDetectorTask : BgTaskBase
     }
 
     /// <summary>
-    /// 将探测日志写入文件（仅在探测失败时调用）
+    /// 日志文件数量上限
     /// </summary>
-    private void WriteDetectionLog(DetectionContext? context)
+    private const int MaxLogFiles = 5;
+
+    /// <summary>
+    /// 单个日志文件大小上限（512KB）
+    /// </summary>
+    private const long MaxLogFileSize = 512 * 1024;
+
+    /// <summary>
+    /// 将探测日志写入文件（无论成功或失败均调用），并自动轮转旧日志
+    /// </summary>
+    /// <param name="context">探测上下文</param>
+    /// <param name="success">探测是否成功</param>
+    /// <param name="detectedPath">成功时探测到的路径</param>
+    /// <param name="reason">失败时的附加原因</param>
+    private void WriteDetectionLog(DetectionContext? context, bool success, string? detectedPath = null, string? reason = null)
     {
         try
         {
@@ -214,8 +230,41 @@ public class PluginSaveDetectorTask : BgTaskBase
             var logContent = context.GetBufferedLog();
             if (string.IsNullOrWhiteSpace(logContent)) return;
 
-            var logPath = Path.Combine(XamlResourceLocatorFactory.packagePath, "detection_log.txt");
-            File.WriteAllText(logPath, logContent);
+            var logDir = Path.Combine(XamlResourceLocatorFactory.packagePath, "detection_logs");
+            Directory.CreateDirectory(logDir);
+
+            // 构建日志头部信息
+            var header = new StringBuilder();
+            header.AppendLine("========================================");
+            header.AppendLine($"  Detection Log - {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            header.AppendLine($"  Game: {_game?.Name?.Value ?? _game?.ExePath ?? "Unknown"}");
+            header.AppendLine($"  Result: {(success ? "SUCCESS" : "FAILED")}");
+            if (success && detectedPath != null)
+                header.AppendLine($"  Detected Path: {detectedPath}");
+            if (!success && reason != null)
+                header.AppendLine($"  Reason: {reason}");
+            header.AppendLine("========================================");
+            header.AppendLine();
+
+            var fullContent = header.ToString() + logContent;
+
+            // 如果日志内容超过单文件大小，截断尾部保留最近的内容
+            if (fullContent.Length > MaxLogFileSize)
+            {
+                var truncateNote = $"[...truncated, original size: {fullContent.Length} bytes...]\n";
+                fullContent = truncateNote + fullContent.Substring(fullContent.Length - (int)MaxLogFileSize + truncateNote.Length);
+            }
+
+            // 写入带时间戳的日志文件
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var resultTag = success ? "ok" : "fail";
+            var logFileName = $"detection_{timestamp}_{resultTag}.log";
+            var logPath = Path.Combine(logDir, logFileName);
+            File.WriteAllText(logPath, fullContent);
+
+            // 清理旧日志文件，只保留最新的 MaxLogFiles 个
+            CleanupOldLogs(logDir);
+
             Debug.WriteLine($"[PluginSaveDetectorTask] Detection log saved to: {logPath}");
         }
         catch (Exception ex)
@@ -225,6 +274,29 @@ public class PluginSaveDetectorTask : BgTaskBase
         finally
         {
             context?.ClearLog();
+        }
+    }
+
+    /// <summary>
+    /// 清理旧的日志文件，只保留最新的 MaxLogFiles 个
+    /// </summary>
+    private static void CleanupOldLogs(string logDir)
+    {
+        try
+        {
+            var logFiles = Directory.GetFiles(logDir, "detection_*.log")
+                .OrderByDescending(f => File.GetCreationTime(f))
+                .ToArray();
+
+            for (var i = MaxLogFiles; i < logFiles.Length; i++)
+            {
+                try { File.Delete(logFiles[i]); }
+                catch { /* 忽略单个文件删除失败 */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PluginSaveDetectorTask] Failed to cleanup old logs: {ex.Message}");
         }
     }
 
