@@ -144,4 +144,10 @@
     <data name="GameSaveDetector_Timeout" xml:space="preserve">
     <value>Detection timeout (max time reached)</value>
   </data>
+    <data name="Ui_StabilityCycles" xml:space="preserve">
+    <value>Confidence Cycles</value>
+  </data>
+    <data name="Ui_StabilityCyclesDescription" xml:space="preserve">
+    <value>Set the number of confidence cycles for detection. Fewer cycles reduce save options but may cause false positives.</value>
+  </data>
 </root>

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -459,6 +460,9 @@ public class SaveDetectorOptions
 
     // 最大探测时间（秒），默认5分钟
     public int MaxDetectionTimeSeconds { get; init; } = 300;
+
+    // 检测确信次数（稳定性循环次数），默认为3
+    public int StabilityCycles { get; init; } = 3;
 }
 
 public enum ProviderSource
@@ -517,6 +521,7 @@ public class DetectionContext
     public ConcurrentQueue<PathCandidate> Candidates { get; } = new();
     public string? FinalPath { get; set; }
     private readonly ISaveDetectorLogger _logger;
+    private readonly StringBuilder _logBuffer = new();
 
     public GalgameManager.Models.Galgame? Game { get; set; }
     public ISaveCandidateProvider? ActiveProvider { get; set; }
@@ -529,11 +534,19 @@ public class DetectionContext
         Settings = s ?? new SaveDetectorOptions();
     }
 
-    [Conditional("DEBUG")]
     public void Log(string msg, LogLevel level = LogLevel.Info)
     {
-#if DEBUG
         _logger.Log(msg, level);
-#endif
+        _logBuffer.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}] {msg}");
     }
+
+    /// <summary>
+    /// 获取缓冲的日志内容
+    /// </summary>
+    public string GetBufferedLog() => _logBuffer.ToString();
+
+    /// <summary>
+    /// 清空日志缓冲区，释放内存
+    /// </summary>
+    public void ClearLog() => _logBuffer.Clear();
 }

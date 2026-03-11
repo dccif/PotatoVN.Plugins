@@ -55,6 +55,29 @@ public partial class Plugin
             adminToggle.Toggled += (s, e) => _data.UseAdminMode = adminToggle.IsOn;
         }
 
+        NumberBox stabilityCyclesBox = new()
+        {
+            Minimum = 1,
+            Maximum = 100,
+            Value = _data.StabilityCycles,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+            SmallChange = 1,
+            LargeChange = 5,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        stabilityCyclesBox.ValueChanged += (s, e) =>
+        {
+            if (!double.IsNaN(e.NewValue))
+                _data.StabilityCycles = (int)e.NewValue;
+        };
+
+        var stabilityCyclesSetting = new StdSetting(
+            GetLocalized("Ui_StabilityCycles") ?? "Confidence Cycles",
+            GetLocalized("Ui_StabilityCyclesDescription") ??
+            "Set the number of confidence cycles for detection. Fewer cycles reduce latency but may cause false positives.",
+            stabilityCyclesBox);
+        stdSetting.Children.Add(stabilityCyclesSetting);
+
         stdStackPanel.Children.Add(stdSetting.WarpWithPanel());
 
         return stdStackPanel;

@@ -36,11 +36,11 @@ public class PluginSaveDetectorTask : BgTaskBase
         _options = new SaveDetectorOptions();
     }
 
-    public PluginSaveDetectorTask(Galgame game, IMessenger? messenger = null, bool useAdminMode = false)
+    public PluginSaveDetectorTask(Galgame game, IMessenger? messenger = null, bool useAdminMode = false, int stabilityCycles = 3)
     {
         _game = game;
         _messenger = messenger;
-        _options = new SaveDetectorOptions { AllowEtw = useAdminMode };
+        _options = new SaveDetectorOptions { AllowEtw = useAdminMode, StabilityCycles = stabilityCycles };
         CancellationTokenSource = new CancellationTokenSource();
     }
 
@@ -51,6 +51,7 @@ public class PluginSaveDetectorTask : BgTaskBase
 
     protected override async Task RunInternal()
     {
+        DetectionContext? context = null;
         try
         {
             if (_game == null) return;
@@ -73,7 +74,7 @@ public class PluginSaveDetectorTask : BgTaskBase
             ISaveDetectorLogger taskLogger = new BgTaskLogger(this);
 
             // Note: We use CancellationToken from BgTaskBase
-            var context = new DetectionContext(_gameProcess, CancellationToken!.Value, taskLogger, _options)
+            context = new DetectionContext(_gameProcess, CancellationToken!.Value, taskLogger, _options)
             {
                 Game = _game
             };
@@ -114,26 +115,30 @@ public class PluginSaveDetectorTask : BgTaskBase
                 ChangeProgress(1, 1, msg, true);
 
                 ShowNotification(Title, msg);
+
+                // 探测成功，清空日志缓冲区，不生成文件
+                context.ClearLog();
             }
             else
             {
                 if (CancellationToken.Value.IsCancellationRequested)
-                    // Check if it was a timeout or manual cancellation
-                    // Note: This is a bit of a heuristic since we don't have a separate timeout token,
-                    // but we can check if the time elapsed is close to the limit.
-                    // Or we just use a generic cancelled message, but user asked for "stopped" on timeout.
                     ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_Timeout") ?? "Detection timeout");
                 else
                     ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_NotFound") ?? "No save detected");
+
+                // 探测失败，将日志写入文件
+                WriteDetectionLog(context);
             }
         }
         catch (OperationCanceledException)
         {
             ChangeProgress(-1, 1, Plugin.GetLocalized("GameSaveDetector_Timeout") ?? "Detection timeout");
+            WriteDetectionLog(context);
         }
         catch (Exception ex)
         {
             ChangeProgress(-1, 1, $"{Plugin.GetLocalized("GameSaveDetector_Failed")}: {ex.Message}");
+            WriteDetectionLog(context);
         }
     }
 
@@ -195,6 +200,31 @@ public class PluginSaveDetectorTask : BgTaskBase
         catch (Exception ex)
         {
             Debug.WriteLine($"[PluginSaveDetectorTask] Failed to show notification: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 将探测日志写入文件（仅在探测失败时调用）
+    /// </summary>
+    private void WriteDetectionLog(DetectionContext? context)
+    {
+        try
+        {
+            if (context == null) return;
+            var logContent = context.GetBufferedLog();
+            if (string.IsNullOrWhiteSpace(logContent)) return;
+
+            var logPath = Path.Combine(XamlResourceLocatorFactory.packagePath, "detection_log.txt");
+            File.WriteAllText(logPath, logContent);
+            Debug.WriteLine($"[PluginSaveDetectorTask] Detection log saved to: {logPath}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PluginSaveDetectorTask] Failed to write detection log: {ex.Message}");
+        }
+        finally
+        {
+            context?.ClearLog();
         }
     }
 

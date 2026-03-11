@@ -144,7 +144,7 @@ public partial class Plugin : IPlugin, IPluginSetting
                 if (!string.IsNullOrEmpty(_activeGame.ExePath))
                 {
                     // Use the new PluginSaveDetectorTask which encapsulates the logic
-                    var task = new PluginSaveDetectorTask(m.Value, _hostApi.Messenger, _data.UseAdminMode);
+                    var task = new PluginSaveDetectorTask(m.Value, _hostApi.Messenger, _data.UseAdminMode, _data.StabilityCycles);
                     _hostApi.AddBgTask(task);
 
                     Debug.WriteLine($"[Plugin] Added SaveDetection task for {_activeGame.Name.Value}");

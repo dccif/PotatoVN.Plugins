@@ -9,7 +9,6 @@ namespace PotatoVN.App.PluginBase.SaveDetection.Pipeline;
 internal class AnalysisStep : IDetectionStep
 {
     private const int STARTUP_GRACE_PERIOD_MS = 10000;
-    private const int REQUIRED_STABILITY_CYCLES = 3;
 
     public async Task ExecuteAsync(DetectionContext context)
     {
@@ -74,7 +73,7 @@ internal class AnalysisStep : IDetectionStep
                     candidatePath = currentCycleWinner;
                     stabilityCounter = 1;
                     context.Log(
-                        $"[Analysis] Cycle 1: Potential candidate found: {candidatePath}. Stability: 1/{REQUIRED_STABILITY_CYCLES}",
+                        $"[Analysis] Cycle 1: Potential candidate found: {candidatePath}. Stability: 1/{context.Settings.StabilityCycles}",
                         LogLevel.Debug);
                 }
                 else
@@ -83,7 +82,7 @@ internal class AnalysisStep : IDetectionStep
                     {
                         stabilityCounter++;
                         context.Log(
-                            $"[Analysis] Cycle {stabilityCounter}: Candidate verified again: {candidatePath}. Stability: {stabilityCounter}/{REQUIRED_STABILITY_CYCLES}",
+                            $"[Analysis] Cycle {stabilityCounter}: Candidate verified again: {candidatePath}. Stability: {stabilityCounter}/{context.Settings.StabilityCycles}",
                             LogLevel.Debug);
                     }
                     else
@@ -94,7 +93,7 @@ internal class AnalysisStep : IDetectionStep
                         candidatePath = currentCycleWinner;
                         stabilityCounter = 1;
                         context.Log(
-                            $"[Analysis] Cycle 1: New potential candidate: {candidatePath}. Stability: 1/{REQUIRED_STABILITY_CYCLES}",
+                            $"[Analysis] Cycle 1: New potential candidate: {candidatePath}. Stability: 1/{context.Settings.StabilityCycles}",
                             LogLevel.Debug);
                     }
                 }
@@ -112,11 +111,11 @@ internal class AnalysisStep : IDetectionStep
             }
 
             // 4. Confirmation
-            if (stabilityCounter >= REQUIRED_STABILITY_CYCLES && candidatePath != null)
+            if (stabilityCounter >= context.Settings.StabilityCycles && candidatePath != null)
             {
                 context.FinalPath = candidatePath;
                 context.Log(
-                    $"[Analysis] Winner confirmed after {REQUIRED_STABILITY_CYCLES} strict cycles: {candidatePath}",
+                    $"[Analysis] Winner confirmed after {context.Settings.StabilityCycles} strict cycles: {candidatePath}",
                     LogLevel.Info);
                 break;
             }

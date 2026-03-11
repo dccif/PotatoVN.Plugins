@@ -46,6 +46,7 @@ public static class SaveDetector
             if (context.ActiveProvider is IDisposable d) d.Dispose();
         }
 
+        context.ClearLog();
         return context.FinalPath;
     }
 

@@ -19,6 +19,11 @@ public partial class PluginData : ObservableRecipient
     /// </summary>
     [ObservableProperty] private bool _useAdminMode = false;
 
+    /// <summary>
+    /// 检测确信次数（稳定性循环次数），默认为3
+    /// </summary>
+    [ObservableProperty] private int _stabilityCycles = 3;
+
     private bool? _originalAutoDetectValue;
 
     /// <summary>

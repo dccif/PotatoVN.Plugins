@@ -144,4 +144,10 @@
     <data name="GameSaveDetector_Timeout" xml:space="preserve">
     <value>検出タイムアウト（最大時間に達しました）</value>
   </data>
+    <data name="Ui_StabilityCycles" xml:space="preserve">
+    <value>確信回数の変更</value>
+  </data>
+    <data name="Ui_StabilityCyclesDescription" xml:space="preserve">
+    <value>検出の確信回数を変更します。回数を減らすとレイテンシが低下しますが、誤検出の可能性があります。</value>
+  </data>
 </root>
